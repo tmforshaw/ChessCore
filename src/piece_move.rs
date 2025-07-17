@@ -138,14 +138,7 @@ pub fn apply_promotion(
     piece_move
 }
 
-/// # Panics
-/// Panics if the piece at the position doesn't have an associated entity, with a texture atlas
-pub fn perform_promotion(
-    board: &mut Board,
-    // texture_atlas_query: &mut Query<&mut TextureAtlas>,
-    from: TilePos,
-    new_piece_type: Piece,
-) {
+pub fn perform_promotion(board: &mut Board, from: TilePos, new_piece_type: Piece) {
     // Change the type of the piece in the internal board
     board.set_piece(from, new_piece_type);
 }
@@ -156,7 +149,6 @@ pub fn perform_promotion(
 /// Returns ``None`` if the file or rank could not be converted to isize (or back to usize after computation)
 pub fn handle_en_passant(
     board: &mut Board,
-    // commands: &mut Commands,
     mut piece_move: PieceMove,
     moved_piece: Piece,
     mut piece_captured: bool,
@@ -176,9 +168,7 @@ pub fn handle_en_passant(
             piece_captured = true;
             piece_move = piece_move.with_en_passant_capture();
 
-            // // Delete the piece at the captured tile
-            // let captured_entity = board.get_entity(captured_piece_pos)?;
-            // commands.entity(captured_entity).despawn();
+            // Delete the piece at the captured tile
             board.set_piece(captured_piece_pos, Piece::None);
 
             piece_moved_to = captured_piece;
@@ -210,9 +200,9 @@ pub fn handle_en_passant(
     Some((en_passant_tile, piece_move, piece_captured, piece_moved_to))
 }
 
+#[allow(clippy::type_complexity)]
 pub fn handle_castling(
     board: &mut Board,
-    // transform_query: &mut Query<&mut Transform>,
     mut piece_move: PieceMove,
     moved_piece: Piece,
 ) -> Option<([(bool, bool); COLOUR_AMT], PieceMove, Option<bool>)> {
@@ -252,7 +242,6 @@ pub fn handle_castling(
 // Returns the piece_move and a boolean for if the castle was kingside
 pub fn perform_castling(
     board: &mut Board,
-    // transform_query: &mut Query<&mut Transform>,
     mut piece_move: PieceMove,
     moved_piece: Piece,
     undo: bool,
@@ -274,7 +263,6 @@ pub fn perform_castling(
 
             move_rook_for_castle(
                 board,
-                // transform_query,
                 BOARD_SIZE - 1,
                 BOARD_SIZE - 3,
                 piece_move.from.rank,
@@ -292,7 +280,6 @@ pub fn perform_castling(
 
 fn move_rook_for_castle(
     board: &mut Board,
-    // transform_query: &mut Query<&mut Transform>,
     file: usize,
     new_file: usize,
     from_rank: usize,
@@ -303,20 +290,8 @@ fn move_rook_for_castle(
 
     if undo {
         std::mem::swap(&mut rook_pos, &mut new_rook_pos);
-    } else {
-        // Move the rook (and its entity ID) internally
-        board.move_piece(PieceMove::new(rook_pos, new_rook_pos));
     }
 
-    // // Move the rook entity
-    // translate_piece_entity(
-    //     transform_query,
-    //     board
-    //         .get_entity(rook_pos)
-    //         .expect("Rook entity was not at Rook pos"),
-    //     new_rook_pos,
-    // );
-
-    // // Move the rook (and its entity ID) internally
-    // board.move_piece(PieceMove::new(rook_pos, new_rook_pos));
+    // Move the rook internally
+    board.move_piece(PieceMove::new(rook_pos, new_rook_pos));
 }

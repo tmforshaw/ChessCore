@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::{
     bitboard::BitBoards,
-    piece::{COLOUR_AMT, PIECES, Piece},
+    piece::{Piece, COLOUR_AMT, PIECES},
     piece_move::PieceMove,
     possible_moves::{get_possible_moves, get_pseudolegal_moves},
 };
@@ -17,16 +17,20 @@ pub enum Player {
 }
 
 impl Player {
-    #[must_use]
     /// # Panics
     // Panics if the PLAYERS array does not contain the Player
+    #[must_use]
     pub fn to_index(&self) -> usize {
         PLAYERS
             .iter()
             .enumerate()
             .find_map(
                 |(i, test_player)| {
-                    if test_player == self { Some(i) } else { None }
+                    if test_player == self {
+                        Some(i)
+                    } else {
+                        None
+                    }
                 },
             )
             .unwrap_or_else(|| panic!("Could not find index of player: {self:?}"))
@@ -102,11 +106,11 @@ pub struct Board {
 
 impl Default for Board {
     fn default() -> Self {
-        const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
+        // const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
 
         // const DEFAULT_FEN: &str = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1"; // Castling Test Board
 
-        // const DEFAULT_FEN: &str = "rnbqkbnr/p1p1pppp/1p6/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3"; // En Pasasnt Test Board
+        const DEFAULT_FEN: &str = "rnbqkbnr/p1p1pppp/1p6/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3"; // En Pasasnt Test Board
 
         // const DEFAULT_FEN: &str =
         //     "rnbqkbnr/1ppp1ppp/8/p3p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4"; // Scholar's Mate Board
