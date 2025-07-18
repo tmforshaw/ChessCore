@@ -2,8 +2,12 @@ use std::fmt;
 
 use crate::{
     bitboard::BitBoards,
-    piece::{Piece, COLOUR_AMT, PIECES},
-    piece_move::PieceMove,
+    move_history::PieceMoveHistory,
+    piece::{COLOUR_AMT, PIECES, Piece},
+    piece_move::{
+        PieceMove, PieceMoveType, apply_promotion, handle_castling, handle_en_passant,
+        perform_castling, perform_promotion,
+    },
     possible_moves::{get_possible_moves, get_pseudolegal_moves},
 };
 
@@ -26,11 +30,7 @@ impl Player {
             .enumerate()
             .find_map(
                 |(i, test_player)| {
-                    if test_player == self {
-                        Some(i)
-                    } else {
-                        None
-                    }
+                    if test_player == self { Some(i) } else { None }
                 },
             )
             .unwrap_or_else(|| panic!("Could not find index of player: {self:?}"))
@@ -94,7 +94,7 @@ impl From<TilePos> for (usize, usize) {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Board {
     pub positions: BitBoards,
     pub player: Player,
@@ -102,15 +102,16 @@ pub struct Board {
     pub en_passant_on_last_move: Option<TilePos>,
     pub half_move_counter: usize,
     pub full_move_counter: usize,
+    pub move_history: PieceMoveHistory,
 }
 
 impl Default for Board {
     fn default() -> Self {
-        // const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
+        const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
 
         // const DEFAULT_FEN: &str = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1"; // Castling Test Board
 
-        const DEFAULT_FEN: &str = "rnbqkbnr/p1p1pppp/1p6/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3"; // En Pasasnt Test Board
+        // const DEFAULT_FEN: &str = "rnbqkbnr/p1p1pppp/1p6/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3"; // En Pasasnt Test Board
 
         // const DEFAULT_FEN: &str =
         //     "rnbqkbnr/1ppp1ppp/8/p3p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4"; // Scholar's Mate Board
@@ -129,7 +130,9 @@ impl Default for Board {
 }
 
 impl Board {
-    fn from_fen<T: AsRef<str>>(fen_string: T) -> Result<Self, String> {
+    /// # Errors
+    /// Returns an error if FEN is incorrect
+    pub fn from_fen<T: AsRef<str>>(fen_string: T) -> Result<Self, String> {
         let fen = fen_string.as_ref();
 
         let mut section_index = 0;
@@ -144,6 +147,7 @@ impl Board {
             en_passant_on_last_move: None,
             half_move_counter: 0,
             full_move_counter: 1,
+            move_history: PieceMoveHistory::default(),
         };
 
         for (chr_index, chr) in fen.char_indices() {
@@ -228,6 +232,138 @@ impl Board {
         Ok(board)
     }
 
+    /// # Panics
+    // Panics if en passant, castling, or promotion was not handled correctly
+    pub fn apply_move(&mut self, mut piece_move: PieceMove) {
+        // TODO Duplicated Code
+
+        let mut piece_captured = false;
+
+        // Capture any pieces that should be captured
+        let mut piece_moved_to = if self.get_piece(piece_move.to) == Piece::None {
+            Piece::None
+        } else {
+            piece_captured = true;
+
+            self.get_piece(piece_move.to)
+        };
+
+        let moved_piece = self.get_piece(piece_move.from);
+
+        // Handle promotion
+        piece_move = apply_promotion(self, moved_piece, piece_move);
+
+        // Handle en passant, if this move is en passant, or if this move allows en passant on the next move
+        let en_passant_tile;
+        (en_passant_tile, piece_move, piece_captured, piece_moved_to) = handle_en_passant(
+            self,
+            piece_move,
+            moved_piece,
+            piece_captured,
+            piece_moved_to,
+        )
+        .expect("Could not handle en passant in apply_move");
+
+        // Handle Castling
+        let castling_rights_before_move;
+        (castling_rights_before_move, piece_move, _) =
+            handle_castling(self, piece_move, moved_piece)
+                .expect("Castling could not be handled in apply_move");
+
+        // Move the piece internally and update its entity translation
+        self.move_piece(piece_move);
+
+        let captured_piece = if piece_captured {
+            Some(piece_moved_to)
+        } else {
+            None
+        };
+
+        // Update the move history with this move
+        self.move_history.make_move(
+            piece_move,
+            captured_piece,
+            en_passant_tile,
+            castling_rights_before_move,
+        );
+
+        self.next_player();
+    }
+
+    /// # Panics
+    /// Panics if castling cannot be undone, or if piece couldn't un-promote
+    pub fn undo_move(&mut self) {
+        // TODO Duplicated Code
+
+        // Check if this move caused the game to end
+        let game_didnt_end = self.has_game_ended().is_none();
+
+        let Some(history_move) = self.move_history.traverse_prev() else {
+            return;
+        };
+
+        let (mut piece_move, captured_piece, en_passant_tile, castling_rights) =
+            history_move.into();
+
+        // Set the castling rights
+        self.castling_rights = castling_rights;
+
+        // Set the en_passant marker
+        self.en_passant_on_last_move = en_passant_tile;
+
+        // Perform the correct move for the move_type
+        match piece_move.move_type {
+            PieceMoveType::Castling => {
+                // Perform the castling
+                let moved_piece = self.get_piece(piece_move.to);
+
+                (piece_move, _) = perform_castling(self, piece_move, moved_piece, true)
+                    .expect("Castling couldn't be undone");
+            }
+            PieceMoveType::Promotion(_) => {
+                // Get the piece's player as an index
+                let player_index = self
+                    .get_piece(piece_move.to)
+                    .to_player()
+                    .expect("Player could not be found via piece move for promotion")
+                    .to_index();
+
+                // Get this player's pawn type
+                let new_piece_type = self.get_player_piece(PLAYERS[player_index], Piece::WPawn);
+
+                perform_promotion(self, piece_move.to, new_piece_type);
+            }
+            _ => {}
+        }
+
+        // Move piece before re-creating captured pieces
+        self.move_piece(piece_move.rev());
+
+        match piece_move.move_type {
+            PieceMoveType::Normal | PieceMoveType::EnPassant => {
+                // TODO
+                // Create new entities for any captured pieces
+                if let Some(captured_piece) = captured_piece {
+                    // Set the captured piece tile, depending on if this capture was an en passant capture or not
+                    let captured_piece_tile = if piece_move.move_type == PieceMoveType::EnPassant {
+                        TilePos::new(piece_move.to.file, piece_move.from.rank)
+                    } else {
+                        piece_move.to
+                    };
+
+                    // Update the board to make it aware of the spawned piece
+                    self.set_piece(captured_piece_tile, captured_piece);
+                }
+            }
+            _ => {}
+        }
+
+        // Only increment the player if the game didn't end on this move
+        if game_didnt_end {
+            self.next_player();
+        }
+    }
+
     pub fn move_piece(&mut self, piece_move: PieceMove) {
         let moved_piece = self.get_piece(piece_move.from);
         self.set_piece(piece_move.from, Piece::None);
@@ -273,22 +409,32 @@ impl Board {
         self.player = self.get_next_player();
     }
 
-    pub fn get_all_player_pieces(&self, player: Player) -> Vec<TilePos> {
+    #[must_use]
+    pub fn get_all_player_piece_pos(&self, player: Player) -> Vec<TilePos> {
+        self.get_all_player_pieces(player)
+            .into_iter()
+            .map(|(_, pos)| pos)
+            .collect::<Vec<_>>()
+    }
+
+    #[must_use]
+    pub fn get_all_player_pieces(&self, player: Player) -> Vec<(Piece, TilePos)> {
         self.positions
             .boards
             .iter()
             .enumerate()
             .filter_map(|(i, &board)| {
                 if Piece::from(i).to_player() == Some(player) {
-                    Some(board.get_positions())
+                    Some((Piece::from(i), board.get_positions()))
                 } else {
                     None
                 }
             })
-            .flat_map(IntoIterator::into_iter)
+            .flat_map(|(piece, positions)| positions.into_iter().map(move |pos| (piece, pos)))
             .collect::<Vec<_>>()
     }
 
+    #[must_use]
     fn get_moves_in_dir(&self, from: TilePos, dirs: Vec<(isize, isize)>) -> Option<Vec<TilePos>> {
         let mut positions = Vec::new();
 
@@ -682,6 +828,36 @@ impl Board {
     }
 
     #[must_use]
+    pub fn get_all_possible_moves(&self, player: Player) -> Vec<PieceMove> {
+        self.positions
+            .boards
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, bitboard)| {
+                if Piece::from(i).is_player(player) {
+                    Some(
+                        bitboard
+                            .get_positions()
+                            .into_iter()
+                            .filter_map(|from_pos| {
+                                get_possible_moves(self, from_pos)
+                                    .map(|positions| (from_pos, positions))
+                            })
+                            .flat_map(|(from_pos, positions)| {
+                                positions
+                                    .into_iter()
+                                    .map(move |to_pos| PieceMove::new(from_pos, to_pos))
+                            }),
+                    )
+                } else {
+                    None
+                }
+            })
+            .flat_map(IntoIterator::into_iter)
+            .collect::<Vec<_>>()
+    }
+
+    #[must_use]
     pub fn has_game_ended(&self) -> Option<Option<Player>> {
         // Get the position of all kings
         for (player, king_pos) in PLAYERS
@@ -690,7 +866,7 @@ impl Board {
         {
             // No moves for this player
             if self
-                .get_all_player_pieces(player)
+                .get_all_player_piece_pos(player)
                 .iter()
                 .filter_map(|&piece_pos| get_possible_moves(self, piece_pos))
                 .flat_map(IntoIterator::into_iter)

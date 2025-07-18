@@ -8,7 +8,7 @@ use crate::{
     piece::{COLOUR_AMT, PIECE_AMT, PIECES, Piece},
 };
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Eq, PartialEq)]
 pub struct BitBoard {
     bits: u64,
 }
@@ -103,7 +103,7 @@ impl fmt::Display for BitBoard {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Eq, PartialEq)]
 pub struct BitBoards {
     pub boards: [BitBoard; PIECE_AMT * COLOUR_AMT],
 }

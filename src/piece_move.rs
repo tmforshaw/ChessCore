@@ -2,7 +2,6 @@ use std::fmt;
 
 use crate::{
     board::{BOARD_SIZE, Board, TilePos},
-    // game_end::GameEndEvent,
     piece::{COLOUR_AMT, Piece},
 };
 
@@ -78,10 +77,44 @@ impl PieceMove {
     /// Returns an error if the from and to tiles contain files which cannot be converted to integers
     pub fn to_algebraic(&self) -> Result<String, std::num::TryFromIntError> {
         Ok(format!(
-            "{} {}",
+            "{}{}",
             self.from.to_algebraic()?,
             self.to.to_algebraic()?
         ))
+    }
+
+    /// # Errors
+    /// Returns an error if the from and to tiles contain files which cannot be converted to integers
+    pub fn from_algebraic(piece_move: &str) -> Result<Self, String> {
+        let piece_move = String::from(piece_move);
+
+        let mut move_chars = Vec::new();
+
+        let mut tiles = Vec::new();
+        for chr in piece_move.chars() {
+            match chr {
+                'a'..='h' => move_chars.push(chr),
+                '1'..='8' => {
+                    move_chars.push(chr);
+                    tiles.push(TilePos::from((
+                        move_chars[0] as usize - 'a' as usize,
+                        move_chars[1] as usize - '1' as usize,
+                    )));
+
+                    move_chars.clear();
+                }
+                _ => {
+                    // Could not convert from algebraic
+                    return Err(format!("Could not convert {piece_move} to TilePos"));
+                }
+            }
+        }
+
+        if tiles.len() == 2 {
+            return Ok(Self::new(tiles[0], tiles[1]));
+        }
+
+        Err(format!("Not enough positions for PieceMove\t\t{tiles:?}"))
     }
 
     #[must_use]
@@ -117,7 +150,6 @@ impl std::fmt::Display for PieceMove {
 
 pub fn apply_promotion(
     board: &mut Board,
-    // texture_atlas_query: &mut Query<&mut TextureAtlas>,
     moved_piece: Piece,
     mut piece_move: PieceMove,
 ) -> PieceMove {
