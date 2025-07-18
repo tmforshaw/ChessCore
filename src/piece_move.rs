@@ -86,7 +86,7 @@ impl PieceMove {
     /// # Errors
     /// Returns an error if the from and to tiles contain files which cannot be converted to integers
     pub fn from_algebraic(piece_move: &str) -> Result<Self, String> {
-        let piece_move = String::from(piece_move);
+        let piece_move = String::from(piece_move.trim());
 
         let mut move_chars = Vec::new();
 
@@ -105,7 +105,7 @@ impl PieceMove {
                 }
                 _ => {
                     // Could not convert from algebraic
-                    return Err(format!("Could not convert {piece_move} to TilePos"));
+                    return Err(format!("Could not convert '{piece_move}' to TilePos"));
                 }
             }
         }

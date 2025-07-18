@@ -218,6 +218,26 @@ impl PieceMoveHistory {
 
         None
     }
+
+    #[must_use]
+    pub fn to_piece_move_string(&self) -> Option<String> {
+        let mut message = String::new();
+
+        // Add piece moves up to and including the current index
+        for (i, &history_move) in self.moves.iter().enumerate() {
+            if let Some(current_idx) = self.current_idx {
+                if i <= current_idx {
+                    let Ok(algebraic) = history_move.piece_move.to_algebraic() else {
+                        return None;
+                    };
+
+                    message += format!("{algebraic} ").as_str();
+                }
+            }
+        }
+
+        Some(message)
+    }
 }
 
 impl fmt::Display for PieceMoveHistory {
