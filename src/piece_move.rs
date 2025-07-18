@@ -188,7 +188,10 @@ pub fn handle_en_passant(
 ) -> Option<(Option<TilePos>, PieceMove, bool, Piece)> {
     // Check if piece moved to the en passant tile
     if let Some(en_passant) = board.en_passant_on_last_move {
-        if en_passant == piece_move.to {
+        // Moved to en passant tile and is the correct player's pawn
+        if en_passant == piece_move.to
+            && moved_piece == board.get_player_piece(board.get_player(), Piece::WPawn)
+        {
             // Get the captured piece type from the Board
             let captured_piece_pos = TilePos::new(
                 piece_move.to.file,
