@@ -673,7 +673,7 @@ impl Board {
             );
 
             // Is empty between these points, and there is nothing at that tile
-            if self.is_empty_between(from, new_pos) && self.get_piece(new_pos) != Piece::None {
+            if self.is_empty_between(from, new_pos) && self.get_piece(new_pos) == Piece::None {
                 positions.push(new_pos);
             }
         }
