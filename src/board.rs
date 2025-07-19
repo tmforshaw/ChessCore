@@ -672,7 +672,8 @@ impl Board {
                 usize::try_from(rank_isize + 2 * vertical_dir).ok()?,
             );
 
-            if self.is_empty_between(from, new_pos) {
+            // Is empty between these points, and there is nothing at that tile
+            if self.is_empty_between(from, new_pos) && self.get_piece(new_pos) != Piece::None {
                 positions.push(new_pos);
             }
         }
