@@ -11,7 +11,7 @@ use crate::{
     possible_moves::{get_possible_moves, get_pseudolegal_moves},
 };
 
-pub const BOARD_SIZE: usize = 8;
+pub const BOARD_SIZE: u32 = 8;
 
 #[derive(Default, Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Player {
@@ -49,14 +49,25 @@ pub const PLAYERS: &[Player] = &[Player::White, Player::Black];
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct TilePos {
-    pub file: usize,
-    pub rank: usize,
+    pub file: u32,
+    pub rank: u32,
 }
 
 impl TilePos {
     #[must_use]
-    pub const fn new(file: usize, rank: usize) -> Self {
+    pub const fn new(file: u32, rank: u32) -> Self {
         Self { file, rank }
+    }
+
+    pub fn to_index(&self) -> u32 {
+        self.file + self.rank * BOARD_SIZE
+    }
+
+    pub fn from_index(index: u32) -> Self {
+        Self {
+            file: index % BOARD_SIZE,
+            rank: index / BOARD_SIZE,
+        }
     }
 
     /// # Errors
@@ -82,13 +93,13 @@ impl std::fmt::Display for TilePos {
     }
 }
 
-impl From<(usize, usize)> for TilePos {
-    fn from((file, rank): (usize, usize)) -> Self {
+impl From<(u32, u32)> for TilePos {
+    fn from((file, rank): (u32, u32)) -> Self {
         Self::new(file, rank)
     }
 }
 
-impl From<TilePos> for (usize, usize) {
+impl From<TilePos> for (u32, u32) {
     fn from(value: TilePos) -> Self {
         (value.file, value.rank)
     }
@@ -158,7 +169,7 @@ impl Board {
                         file = 0;
                         rank += 1;
                     }
-                    '1'..='8' => file += (chr as u8 - b'0') as usize,
+                    '1'..='8' => file += (chr as u8 - b'0') as u32,
                     ' ' => section_index += 1,
                     _ => {
                         if let Some(piece) = Piece::from_algebraic(chr) {
@@ -211,8 +222,8 @@ impl Board {
                             match (algebraic_en_passant[0], algebraic_en_passant[1]) {
                                 ('a'..='h', '0'..='8') => {
                                     board.en_passant_on_last_move = Some(TilePos::new(
-                                        (algebraic_en_passant[0] as u8 - b'a') as usize,
-                                        (algebraic_en_passant[1] as u8 - b'1') as usize,
+                                        (algebraic_en_passant[0] as u8 - b'a') as u32,
+                                        (algebraic_en_passant[1] as u8 - b'1') as u32,
                                     ));
                                 }
                                 _ => {
@@ -329,7 +340,7 @@ impl Board {
                     .to_index();
 
                 // Get this player's pawn type
-                let new_piece_type = self.get_player_piece(PLAYERS[player_index], Piece::WPawn);
+                let new_piece_type = Piece::get_player_piece(PLAYERS[player_index], Piece::WPawn);
 
                 perform_promotion(self, piece_move.to, new_piece_type);
             }
@@ -370,6 +381,7 @@ impl Board {
         self.set_piece(piece_move.to, moved_piece);
     }
 
+    // TODO Remove this
     #[must_use]
     pub fn get_piece(&self, tile_pos: TilePos) -> Piece {
         for &piece in PIECES {
@@ -411,28 +423,29 @@ impl Board {
 
     #[must_use]
     pub fn get_all_player_piece_pos(&self, player: Player) -> Vec<TilePos> {
-        self.get_all_player_pieces(player)
-            .into_iter()
-            .map(|(_, pos)| pos)
-            .collect::<Vec<_>>()
+        self.positions
+            .get_player_occupied(player)
+            .to_tile_positions()
     }
 
-    #[must_use]
-    pub fn get_all_player_pieces(&self, player: Player) -> Vec<(Piece, TilePos)> {
-        self.positions
-            .boards
-            .iter()
-            .enumerate()
-            .filter_map(|(i, &board)| {
-                if Piece::from(i).to_player() == Some(player) {
-                    Some((Piece::from(i), board.get_positions()))
-                } else {
-                    None
-                }
-            })
-            .flat_map(|(piece, positions)| positions.into_iter().map(move |pos| (piece, pos)))
-            .collect::<Vec<_>>()
-    }
+    // #[must_use]
+    // pub fn get_all_player_pieces(&self, player: Player) -> Vec<(Piece, TilePos)> {
+    //     self.positions.get_player_occupied(player)
+
+    //     self.positions
+    //         .boards
+    //         .iter()
+    //         .enumerate()
+    //         .filter_map(|(i, &board)| {
+    //             if Piece::from(i).to_player() == Some(player) {
+    //                 Some((Piece::from(i), board.get_positions()))
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .flat_map(|(piece, positions)| positions.into_iter().map(move |pos| (piece, pos)))
+    //         .collect::<Vec<_>>()
+    // }
 
     #[must_use]
     fn get_moves_in_dir(&self, from: TilePos, dirs: Vec<(isize, isize)>) -> Option<Vec<TilePos>> {
@@ -451,10 +464,8 @@ impl Board {
                     && new_rank >= 0
                     && new_rank < board_size_isize
                 {
-                    let new_pos = TilePos::new(
-                        usize::try_from(new_file).ok()?,
-                        usize::try_from(new_rank).ok()?,
-                    );
+                    let new_pos =
+                        TilePos::new(u32::try_from(new_file).ok()?, u32::try_from(new_rank).ok()?);
 
                     let piece = self.get_piece(from);
                     let captured_piece = self.get_piece(new_pos);
@@ -492,7 +503,7 @@ impl Board {
         Some(positions)
     }
 
-    fn get_castling_pos(&self, from: TilePos, file: usize) -> Option<TilePos> {
+    fn get_castling_pos(&self, from: TilePos, file: u32) -> Option<TilePos> {
         // Get Rook Position
         let rook = TilePos::new(file, from.rank);
 
@@ -539,8 +550,8 @@ impl Board {
                     && rank_isize + j < board_size_isize
                 {
                     let new_pos = TilePos::new(
-                        usize::try_from(file_isize + i).ok()?,
-                        usize::try_from(rank_isize + j).ok()?,
+                        u32::try_from(file_isize + i).ok()?,
+                        u32::try_from(rank_isize + j).ok()?,
                     );
 
                     let captured_piece = self.get_piece(new_pos);
@@ -579,8 +590,8 @@ impl Board {
                         && horizontal < board_size_isize
                     {
                         let new_pos = TilePos::new(
-                            usize::try_from(file_isize + i).ok()?,
-                            usize::try_from(rank_isize + j).ok()?,
+                            u32::try_from(file_isize + i).ok()?,
+                            u32::try_from(rank_isize + j).ok()?,
                         );
 
                         if self.get_piece(new_pos).to_player() != player {
@@ -628,7 +639,7 @@ impl Board {
         let new_vertical_pos = rank_isize + vertical_dir;
         if new_vertical_pos >= 0 && new_vertical_pos < board_size_isize {
             // Single Move Vertically
-            let new_pos = TilePos::new(from.file, usize::try_from(rank_isize + vertical_dir).ok()?);
+            let new_pos = TilePos::new(from.file, u32::try_from(rank_isize + vertical_dir).ok()?);
             if self.get_piece(new_pos) == Piece::None {
                 positions.push(new_pos);
             }
@@ -640,8 +651,8 @@ impl Board {
                 if new_horizontal_pos >= 0 && new_horizontal_pos < board_size_isize {
                     if let Some(player) = piece.to_player() {
                         let new_pos = TilePos::new(
-                            usize::try_from(new_horizontal_pos).ok()?,
-                            usize::try_from(new_vertical_pos).ok()?,
+                            u32::try_from(new_horizontal_pos).ok()?,
+                            u32::try_from(new_vertical_pos).ok()?,
                         );
 
                         if let Some(captured_player) = self.get_piece(new_pos).to_player() {
@@ -669,7 +680,7 @@ impl Board {
         if Self::double_pawn_move_check(piece, from) {
             let new_pos = TilePos::new(
                 from.file,
-                usize::try_from(rank_isize + 2 * vertical_dir).ok()?,
+                u32::try_from(rank_isize + 2 * vertical_dir).ok()?,
             );
 
             // Is empty between these points, and there is nothing at that tile
@@ -699,7 +710,7 @@ impl Board {
             .flat_map(|board| {
                 // Get the pseudolegal moves for all pieces of this type
                 board
-                    .get_positions()
+                    .to_tile_positions()
                     .iter()
                     .filter_map(|&pos| get_pseudolegal_moves(self, pos))
                     .flat_map(IntoIterator::into_iter)
@@ -761,11 +772,12 @@ impl Board {
             pos2
         };
 
-        let file_diff = usize::from(file_diff_isize != 0);
-        let rank_diff = usize::from(rank_diff_isize != 0);
+        let file_diff = u32::from(file_diff_isize != 0);
+        let rank_diff = u32::from(rank_diff_isize != 0);
 
         Some(
-            (1..((file_diff_isize.unsigned_abs()).max(rank_diff_isize.unsigned_abs())))
+            (1..((file_diff_isize.unsigned_abs() as u32)
+                .max(rank_diff_isize.unsigned_abs() as u32)))
                 .map(|k| {
                     TilePos::new(
                         lower_pos.file + k * file_diff,
@@ -800,32 +812,8 @@ impl Board {
     }
 
     #[must_use]
-    pub const fn get_player_piece(&self, player: Player, piece: Piece) -> Piece {
-        match player {
-            Player::White => match piece {
-                Piece::WQueen | Piece::BQueen => Piece::WQueen,
-                Piece::WKing | Piece::BKing => Piece::WKing,
-                Piece::WRook | Piece::BRook => Piece::WRook,
-                Piece::WKnight | Piece::BKnight => Piece::WKnight,
-                Piece::WBishop | Piece::BBishop => Piece::WBishop,
-                Piece::WPawn | Piece::BPawn => Piece::WPawn,
-                Piece::None => Piece::None,
-            },
-            Player::Black => match piece {
-                Piece::WQueen | Piece::BQueen => Piece::BQueen,
-                Piece::WKing | Piece::BKing => Piece::BKing,
-                Piece::WRook | Piece::BRook => Piece::BRook,
-                Piece::WKnight | Piece::BKnight => Piece::BKnight,
-                Piece::WBishop | Piece::BBishop => Piece::BBishop,
-                Piece::WPawn | Piece::BPawn => Piece::BPawn,
-                Piece::None => Piece::None,
-            },
-        }
-    }
-
-    #[must_use]
     pub fn get_king_pos(&self, player: Player) -> TilePos {
-        self.positions[self.get_player_king(player)].get_positions()[0] // Should always have a king
+        self.positions[self.get_player_king(player)].to_tile_positions()[0] // Should always have a king
     }
 
     #[must_use]
@@ -838,7 +826,7 @@ impl Board {
                 if Piece::from(i).is_player(player) {
                     Some(
                         bitboard
-                            .get_positions()
+                            .to_tile_positions()
                             .into_iter()
                             .filter_map(|from_pos| {
                                 get_possible_moves(self, from_pos)

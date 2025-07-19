@@ -97,8 +97,8 @@ impl PieceMove {
                 '1'..='8' => {
                     move_chars.push(chr);
                     tiles.push(TilePos::from((
-                        move_chars[0] as usize - 'a' as usize,
-                        move_chars[1] as usize - '1' as usize,
+                        move_chars[0] as u32 - 'a' as u32,
+                        move_chars[1] as u32 - '1' as u32,
                     )));
 
                     move_chars.clear();
@@ -154,12 +154,12 @@ pub fn apply_promotion(
     mut piece_move: PieceMove,
 ) -> PieceMove {
     // Pawn was moved onto final file (Player doesn't matter here since pawn cannot move backwards)
-    if moved_piece == board.get_player_piece(board.get_player(), Piece::WPawn)
+    if moved_piece == Piece::get_player_piece(board.get_player(), Piece::WPawn)
         && (piece_move.to.rank == BOARD_SIZE - 1 || piece_move.to.rank == 0)
     {
         let promoted_to = match piece_move.move_type {
             PieceMoveType::Promotion(promoted_to) => promoted_to,
-            _ => board.get_player_piece(board.get_player(), Piece::WQueen), // TODO Allow choosing which piece to promote to
+            _ => Piece::get_player_piece(board.get_player(), Piece::WQueen), // TODO Allow choosing which piece to promote to
         };
 
         piece_move = piece_move.with_promotion(promoted_to);
@@ -190,7 +190,7 @@ pub fn handle_en_passant(
     if let Some(en_passant) = board.en_passant_on_last_move {
         // Moved to en passant tile and is the correct player's pawn
         if en_passant == piece_move.to
-            && moved_piece == board.get_player_piece(board.get_player(), Piece::WPawn)
+            && moved_piece == Piece::get_player_piece(board.get_player(), Piece::WPawn)
         {
             // Get the captured piece type from the Board
             let captured_piece_pos = TilePos::new(
@@ -223,7 +223,7 @@ pub fn handle_en_passant(
     {
         let en_passant_tile = TilePos::new(
             piece_move.to.file,
-            usize::try_from(
+            u32::try_from(
                 isize::try_from(piece_move.from.rank).ok()? + Board::get_vertical_dir(moved_piece),
             )
             .ok()?,
@@ -255,7 +255,7 @@ pub fn handle_castling(
                 board.castling_rights[player_index] = (false, false);
             }
             // Rook was moved
-            else if moved_piece == board.get_player_piece(board.get_player(), Piece::WRook) {
+            else if moved_piece == Piece::get_player_piece(board.get_player(), Piece::WRook) {
                 // Kingside
                 if piece_move.from.file == BOARD_SIZE - 1 {
                     board.castling_rights[player_index].0 = false;
@@ -313,13 +313,7 @@ pub fn perform_castling(
     Some((piece_move, kingside_castle))
 }
 
-fn move_rook_for_castle(
-    board: &mut Board,
-    file: usize,
-    new_file: usize,
-    from_rank: usize,
-    undo: bool,
-) {
+fn move_rook_for_castle(board: &mut Board, file: u32, new_file: u32, from_rank: u32, undo: bool) {
     let mut rook_pos = TilePos::new(file, from_rank);
     let mut new_rook_pos = TilePos::new(new_file, rook_pos.rank);
 
