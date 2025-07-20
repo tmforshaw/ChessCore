@@ -292,36 +292,7 @@ impl BitBoards {
             .to_player()
             .expect("Could not get player from Piece at from");
 
-        // TODO promotions
-
-        let pawn = 1 << from.to_index();
-
-        match player {
-            Player::White => get_pawn_moves_for(
-                pawn,
-                self.get_player_occupied(Player::Black).bits(),
-                !self.get_occupied().bits(),
-                self.en_passant_tile,
-                8,
-                1,
-                7,
-                9,
-                Self::get_file_mask(7).bits(),
-                Self::get_file_mask(0).bits(),
-            ),
-            Player::Black => get_pawn_moves_for(
-                pawn,
-                self.get_player_occupied(Player::White).bits(),
-                !self.get_occupied().bits(),
-                self.en_passant_tile,
-                -8,
-                6,
-                -9,
-                -7,
-                Self::get_file_mask(7).bits(),
-                Self::get_file_mask(0).bits(),
-            ),
-        }
+        get_pawn_moves_for_player(self, from, player, false)
     }
 
     /// # Panics
@@ -534,6 +505,19 @@ impl BitBoards {
         })(self, from)
     }
 
+    /// # Panics
+    /// Panics if ``Player`` can't be found using ``from``
+    #[must_use]
+    pub fn get_pawn_pseudolegal_capturing_moves(&self, from: TilePos) -> BitBoard {
+        // TODO Duplicated code
+        let player = self
+            .get_piece(from)
+            .to_player()
+            .expect("Could not get player from Piece at from");
+
+        get_pawn_moves_for_player(self, from, player, true)
+    }
+
     // END ---- Pseudolegal Move Generation ----------------------------------------------------------------------------------------------------------
 
     #[must_use]
@@ -568,7 +552,15 @@ impl BitBoards {
 
                 bits &= bits - 1; // Clear LSB
 
-                attacked |= self.get_pseudolegal_moves(TilePos::from_index(from)).bits();
+                let from_pos = TilePos::from_index(from);
+
+                // Only count capturing moves for pawns
+                attacked |=
+                    if PIECES[i] == Piece::get_player_piece(player.next_player(), Piece::WPawn) {
+                        self.get_pawn_pseudolegal_capturing_moves(from_pos).bits()
+                    } else {
+                        self.get_pseudolegal_moves(from_pos).bits()
+                    };
             }
         }
 
@@ -577,9 +569,10 @@ impl BitBoards {
 
     #[must_use]
     pub fn is_pos_attacked(&self, pos: TilePos) -> bool {
+        // TODO should have to do next player but it needs it without for some reason
         (self.get_piece(pos).to_player().map_or_else(
             || self.get_attacked_tiles(Player::White) | self.get_attacked_tiles(Player::Black),
-            |player| self.get_attacked_tiles(player.next_player()),
+            |player| self.get_attacked_tiles(player),
         ) & (1 << pos.to_index()))
         .bits()
             != 0
@@ -621,6 +614,7 @@ impl BitBoards {
                 .get_piece(from)
                 .to_player()
                 .expect("Could not get player from Piece at from"); // TODO
+
             if !self.move_makes_pos_attacked(new_move, self.get_king_pos(player)) {
                 moves.push(new_move);
             }
@@ -784,21 +778,36 @@ fn get_pawn_moves_for(
     right_shift: i8,
     left_file_mask: u64,
     right_file_mask: u64,
+    only_captures: bool,
 ) -> BitBoard {
     // Pushing
-    let single_push = shift_i8(pawns, forward) & empty;
-    let double_push = shift_i8(
-        shift_i8(pawns & BitBoards::get_rank_mask(start_rank).bits(), forward) & empty,
-        forward,
-    ) & empty;
+    let (single_push, double_push) = if only_captures {
+        (0, 0)
+    } else {
+        (
+            shift_i8(pawns, forward) & empty,
+            shift_i8(
+                shift_i8(pawns & BitBoards::get_rank_mask(start_rank).bits(), forward) & empty,
+                forward,
+            ) & empty,
+        )
+    };
+
+    // Don't check for opposing pieces when you want all the attacking pieces
+    let opposing_pieces = if only_captures {
+        u64::MAX
+    } else {
+        opposing_pieces
+    };
 
     // Capturing
-    let left_capture = shift_i8(pawns, left_shift) & opposing_pieces & !right_file_mask;
-    let right_capture = shift_i8(pawns, right_shift) & opposing_pieces & !left_file_mask;
+    let left_capture = shift_i8(pawns, left_shift) & opposing_pieces & !left_file_mask;
+    let right_capture = shift_i8(pawns, right_shift) & opposing_pieces & !right_file_mask;
 
     // En Passant Capturing
-    let en_passant_capture_left = shift_i8(pawns, left_shift) & en_passant_tile & !right_file_mask;
-    let en_passant_capture_right = shift_i8(pawns, right_shift) & en_passant_tile & !left_file_mask;
+    let en_passant_capture_left = shift_i8(pawns, left_shift) & en_passant_tile & !left_file_mask;
+    let en_passant_capture_right =
+        shift_i8(pawns, right_shift) & en_passant_tile & !right_file_mask;
 
     (single_push
         | double_push
@@ -807,6 +816,44 @@ fn get_pawn_moves_for(
         | en_passant_capture_left
         | en_passant_capture_right)
         .into()
+}
+
+fn get_pawn_moves_for_player(
+    bitboards: &BitBoards,
+    from: TilePos,
+    player: Player,
+    only_captures: bool,
+) -> BitBoard {
+    let pawn = 1 << from.to_index();
+
+    match player {
+        Player::White => get_pawn_moves_for(
+            pawn,
+            bitboards.get_player_occupied(Player::Black).bits(),
+            !bitboards.get_occupied().bits(),
+            bitboards.en_passant_tile,
+            8,
+            1,
+            7,
+            9,
+            BitBoards::get_file_mask(7).bits(),
+            BitBoards::get_file_mask(0).bits(),
+            only_captures,
+        ),
+        Player::Black => get_pawn_moves_for(
+            pawn,
+            bitboards.get_player_occupied(Player::White).bits(),
+            !bitboards.get_occupied().bits(),
+            bitboards.en_passant_tile,
+            -8,
+            6,
+            -9,
+            -7,
+            BitBoards::get_file_mask(7).bits(),
+            BitBoards::get_file_mask(0).bits(),
+            only_captures,
+        ),
+    }
 }
 
 const fn sliding_moves_in_direction(
