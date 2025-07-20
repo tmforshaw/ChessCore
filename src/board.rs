@@ -116,7 +116,7 @@ pub struct Board {
 
 impl Default for Board {
     fn default() -> Self {
-        const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
+        // const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
 
         // const DEFAULT_FEN: &str = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1"; // Castling Test Board
 
@@ -125,7 +125,7 @@ impl Default for Board {
         // const DEFAULT_FEN: &str =
         //     "rnbqkbnr/1ppp1ppp/8/p3p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4"; // Scholar's Mate Board
 
-        // const DEFAULT_FEN: &str = "8/1ppkp1P1/3pp3/8/8/5PP1/p2PPKP1/8 w - - 1 1"; // Promotion Test Board
+        const DEFAULT_FEN: &str = "8/1ppkp1P1/3pp3/8/8/5PP1/p2PPKP1/8 w - - 1 1"; // Promotion Test Board
 
         // const DEFAULT_FEN: &str = "rn1qk1nr/pPppppPp/8/8/8/8/PpPPPPpP/RN1QK1NR w KQkq - 0 1"; // Capture Promotion Corner
 
@@ -245,7 +245,7 @@ impl Board {
 
     /// # Panics
     // Panics if en passant, castling, or promotion was not handled correctly
-    pub fn apply_move(&mut self, mut piece_move: PieceMove) {
+    pub fn apply_move(&mut self, piece_move: PieceMove) {
         // TODO Duplicated Code
 
         // let mut piece_captured = false;
@@ -399,13 +399,6 @@ impl Board {
     }
 
     #[must_use]
-    pub fn get_all_player_piece_pos(&self, player: Player) -> Vec<TilePos> {
-        self.positions
-            .get_player_occupied(player)
-            .to_tile_positions()
-    }
-
-    #[must_use]
     pub fn double_pawn_move_check(piece: Piece, from: TilePos) -> bool {
         (piece.is_white() && from.rank == 1) || (piece.is_black() && from.rank == BOARD_SIZE - 2)
     }
@@ -448,20 +441,5 @@ impl Board {
                 })
                 .collect::<Vec<_>>(),
         )
-    }
-
-    #[must_use]
-    pub fn is_empty_between(&self, pos1: TilePos, pos2: TilePos) -> bool {
-        let Some(tiles_between) = self.get_tiles_between(pos1, pos2) else {
-            return false;
-        };
-
-        for tile in tiles_between {
-            if self.positions.get_piece(tile) != Piece::None {
-                return false;
-            }
-        }
-
-        true
     }
 }

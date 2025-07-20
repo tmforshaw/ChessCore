@@ -351,6 +351,44 @@ impl BitBoards {
         // Down-Right
         moves |= (king >> 7) & !file_a;
 
+        // Castling TODO Remove duplicated parts of this code
+        match player {
+            Player::White => {
+                // Kingside castle
+                if self.castling_rights[0].0
+                    && self.is_empty_between(5, 6)
+                    && (self.get_attacked_tiles(player) & self.get_between_mask(5, 6)).bits() == 0
+                {
+                    moves |= 1 << 6; // G1
+                }
+
+                // Queenside castle
+                if self.castling_rights[0].1
+                    && self.is_empty_between(1, 3)
+                    && (self.get_attacked_tiles(player) & self.get_between_mask(1, 3)).bits() == 0
+                {
+                    moves |= 1 << 2; // C1
+                }
+            }
+            Player::Black => {
+                // Kingside castle
+                if self.castling_rights[1].0
+                    && self.is_empty_between(61, 62)
+                    && (self.get_attacked_tiles(player) & self.get_between_mask(61, 62)).bits() == 0
+                {
+                    moves |= 1 << 62; // G1
+                }
+
+                // Queenside castle
+                if self.castling_rights[1].1
+                    && self.is_empty_between(57, 59)
+                    && (self.get_attacked_tiles(player) & self.get_between_mask(57, 59)).bits() == 0
+                {
+                    moves |= 1 << 58; // C1
+                }
+            }
+        }
+
         // Remove own pieces squares
         moves & !self.get_player_occupied(player)
     }
@@ -575,6 +613,19 @@ impl BitBoards {
     #[must_use]
     pub fn get_king_pos(&self, player: Player) -> TilePos {
         self[self.get_player_king(player)].to_tile_positions()[0] // Should always have a king
+    }
+
+    // Gets a mask for the files which are between two file indices
+    #[must_use]
+    pub fn get_between_mask(&self, start: u32, end: u32) -> BitBoard {
+        (((1u64 << (end + 1)) - 1) ^ ((1u64 << start) - 1)).into()
+    }
+
+    // Checks if files are empty between two file indices
+    #[must_use]
+    pub fn is_empty_between(&self, start: u32, end: u32) -> bool {
+        let mask = self.get_between_mask(start, end);
+        (self.get_occupied() & mask).bits() == 0
     }
 
     #[must_use]
