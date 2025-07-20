@@ -529,19 +529,19 @@ fn get_pawn_moves_for(
     right_file_mask: u64,
 ) -> BitBoard {
     // Pushing
-    let single_push = shift(pawns, forward) & empty;
-    let double_push = shift(
-        shift(pawns & BitBoards::get_rank_mask(start_rank).bits(), forward) & empty,
+    let single_push = shift_i8(pawns, forward) & empty;
+    let double_push = shift_i8(
+        shift_i8(pawns & BitBoards::get_rank_mask(start_rank).bits(), forward) & empty,
         forward,
     ) & empty;
 
     // Capturing
-    let left_capture = shift(pawns, left_shift) & opposing_pieces & !right_file_mask;
-    let right_capture = shift(pawns, right_shift) & opposing_pieces & !left_file_mask;
+    let left_capture = shift_i8(pawns, left_shift) & opposing_pieces & !right_file_mask;
+    let right_capture = shift_i8(pawns, right_shift) & opposing_pieces & !left_file_mask;
 
     // En Passant Capturing
-    let en_passant_capture_left = shift(pawns, left_shift) & en_passant_tile & !right_file_mask;
-    let en_passant_capture_right = shift(pawns, right_shift) & en_passant_tile & !left_file_mask;
+    let en_passant_capture_left = shift_i8(pawns, left_shift) & en_passant_tile & !right_file_mask;
+    let en_passant_capture_right = shift_i8(pawns, right_shift) & en_passant_tile & !left_file_mask;
 
     (single_push
         | double_push
@@ -561,7 +561,7 @@ const fn sliding_moves_in_direction(
     let mut moves = 0;
     loop {
         // Shift position by one step
-        position = shift(position, shift_amt) & !edge_mask;
+        position = shift_i8(position, shift_amt) & !edge_mask;
 
         if position == 0 {
             break;
@@ -577,7 +577,7 @@ const fn sliding_moves_in_direction(
     moves
 }
 
-const fn shift(bits: u64, shift_amt: i8) -> u64 {
+const fn shift_i8(bits: u64, shift_amt: i8) -> u64 {
     if shift_amt > 0 {
         bits << shift_amt
     } else {

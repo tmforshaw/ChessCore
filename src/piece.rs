@@ -152,25 +152,25 @@ impl Piece {
     }
 
     #[must_use]
-    pub const fn get_player_piece(player: Player, piece: Piece) -> Piece {
+    pub const fn get_player_piece(player: Player, piece: Self) -> Self {
         match player {
             Player::White => match piece {
-                Piece::WQueen | Piece::BQueen => Piece::WQueen,
-                Piece::WKing | Piece::BKing => Piece::WKing,
-                Piece::WRook | Piece::BRook => Piece::WRook,
-                Piece::WKnight | Piece::BKnight => Piece::WKnight,
-                Piece::WBishop | Piece::BBishop => Piece::WBishop,
-                Piece::WPawn | Piece::BPawn => Piece::WPawn,
-                Piece::None => Piece::None,
+                Self::WQueen | Self::BQueen => Self::WQueen,
+                Self::WKing | Self::BKing => Self::WKing,
+                Self::WRook | Self::BRook => Self::WRook,
+                Self::WKnight | Self::BKnight => Self::WKnight,
+                Self::WBishop | Self::BBishop => Self::WBishop,
+                Self::WPawn | Self::BPawn => Self::WPawn,
+                Self::None => Self::None,
             },
             Player::Black => match piece {
-                Piece::WQueen | Piece::BQueen => Piece::BQueen,
-                Piece::WKing | Piece::BKing => Piece::BKing,
-                Piece::WRook | Piece::BRook => Piece::BRook,
-                Piece::WKnight | Piece::BKnight => Piece::BKnight,
-                Piece::WBishop | Piece::BBishop => Piece::BBishop,
-                Piece::WPawn | Piece::BPawn => Piece::BPawn,
-                Piece::None => Piece::None,
+                Self::WQueen | Self::BQueen => Self::BQueen,
+                Self::WKing | Self::BKing => Self::BKing,
+                Self::WRook | Self::BRook => Self::BRook,
+                Self::WKnight | Self::BKnight => Self::BKnight,
+                Self::WBishop | Self::BBishop => Self::BBishop,
+                Self::WPawn | Self::BPawn => Self::BPawn,
+                Self::None => Self::None,
             },
         }
     }

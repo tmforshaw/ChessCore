@@ -58,11 +58,13 @@ impl TilePos {
         Self { file, rank }
     }
 
-    pub fn to_index(&self) -> u32 {
+    #[must_use]
+    pub const fn to_index(&self) -> u32 {
         self.file + self.rank * BOARD_SIZE
     }
 
-    pub fn from_index(index: u32) -> Self {
+    #[must_use]
+    pub const fn from_index(index: u32) -> Self {
         Self {
             file: index % BOARD_SIZE,
             rank: index / BOARD_SIZE,
@@ -168,7 +170,7 @@ impl Board {
                         file = 0;
                         rank += 1;
                     }
-                    '1'..='8' => file += (chr as u8 - b'0') as u32,
+                    '1'..='8' => file += u32::from(chr as u8 - b'0'),
                     ' ' => section_index += 1,
                     _ => {
                         if let Some(piece) = Piece::from_algebraic(chr) {
@@ -221,8 +223,8 @@ impl Board {
                             match (algebraic_en_passant[0], algebraic_en_passant[1]) {
                                 ('a'..='h', '0'..='8') => {
                                     board.en_passant_on_last_move = Some(TilePos::new(
-                                        (algebraic_en_passant[0] as u8 - b'a') as u32,
-                                        (algebraic_en_passant[1] as u8 - b'1') as u32,
+                                        u32::from(algebraic_en_passant[0] as u8 - b'a'),
+                                        u32::from(algebraic_en_passant[1] as u8 - b'1'),
                                     ));
                                 }
                                 _ => {
