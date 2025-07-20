@@ -4,7 +4,7 @@ use crate::{
     bitboards::BitBoards,
     move_history::PieceMoveHistory,
     piece::{COLOUR_AMT, Piece},
-    piece_move::PieceMove,
+    piece_move::{PieceMove, PieceMoveType},
 };
 
 pub const BOARD_SIZE: u32 = 8;
@@ -116,7 +116,7 @@ pub struct Board {
 
 impl Default for Board {
     fn default() -> Self {
-        // const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
+        const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
 
         // const DEFAULT_FEN: &str = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1"; // Castling Test Board
 
@@ -125,7 +125,7 @@ impl Default for Board {
         // const DEFAULT_FEN: &str =
         //     "rnbqkbnr/1ppp1ppp/8/p3p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4"; // Scholar's Mate Board
 
-        const DEFAULT_FEN: &str = "8/1ppkp1P1/3pp3/8/8/5PP1/p2PPKP1/8 w - - 1 1"; // Promotion Test Board
+        // const DEFAULT_FEN: &str = "8/1ppkp1P1/3pp3/8/8/5PP1/p2PPKP1/8 w - - 1 1"; // Promotion Test Board
 
         // const DEFAULT_FEN: &str = "rn1qk1nr/pPppppPp/8/8/8/8/PpPPPPpP/RN1QK1NR w KQkq - 0 1"; // Capture Promotion Corner
 
@@ -245,7 +245,7 @@ impl Board {
 
     /// # Panics
     // Panics if en passant, castling, or promotion was not handled correctly
-    pub fn apply_move(&mut self, piece_move: PieceMove) {
+    pub fn apply_move(&mut self, piece_move: PieceMove) -> PieceMoveType {
         // TODO Duplicated Code
 
         // let mut piece_captured = false;
@@ -292,6 +292,7 @@ impl Board {
 
         self.positions.apply_move(piece_move);
 
+        // TODO Add this to positions.apply_move
         // // Update the move history with this move
         // self.move_history.make_move(
         //     piece_move,
@@ -301,18 +302,20 @@ impl Board {
         // );
 
         self.next_player();
+
+        piece_move.move_type
     }
 
     /// # Panics
     /// Panics if castling cannot be undone, or if piece couldn't un-promote
-    pub fn undo_move(&mut self) {
+    pub fn undo_move(&mut self) -> Option<PieceMoveType> {
         // TODO Duplicated Code
 
         // Check if this move caused the game to end
         let game_didnt_end = self.positions.has_game_ended().is_none();
 
         let Some(history_move) = self.move_history.traverse_prev() else {
-            return;
+            return None;
         };
 
         // let (mut piece_move, captured_piece, en_passant_tile, castling_rights) =
@@ -373,12 +376,14 @@ impl Board {
         //     _ => {}
         // }
 
-        self.positions.undo_move(history_move);
+        let move_type = self.positions.undo_move(history_move);
 
         // Only increment the player if the game didn't end on this move
         if game_didnt_end {
             self.next_player();
         }
+
+        Some(move_type)
     }
 
     #[must_use]

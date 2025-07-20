@@ -5,7 +5,7 @@ use crate::{
     board::{BOARD_SIZE, PLAYERS, Player, TilePos},
     move_history::HistoryMove,
     piece::{COLOUR_AMT, PIECE_AMT, PIECES, Piece},
-    piece_move::PieceMove,
+    piece_move::{PieceMove, PieceMoveType},
 };
 
 #[derive(Default, Clone, Eq, PartialEq)]
@@ -165,7 +165,7 @@ impl BitBoards {
     /// # Panics
     /// Panics if player cannot be found from ``piece_move.from``
     // TODO take reference of history
-    pub fn undo_move(&mut self, history: HistoryMove) {
+    pub fn undo_move(&mut self, history: HistoryMove) -> PieceMoveType {
         let (piece_move, captured_piece, en_passant_tile, castling_rights) = history.into();
 
         let from_idx = piece_move.from.to_index();
@@ -226,6 +226,8 @@ impl BitBoards {
         }
 
         self.castling_rights = castling_rights;
+
+        piece_move.move_type
     }
 
     // END  ---- Apply and Undo Moves ----------------------------------------------------------------------------------------------------------------
