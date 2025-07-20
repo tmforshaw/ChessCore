@@ -14,14 +14,18 @@ pub struct BitBoards {
 }
 
 impl BitBoards {
+    // TODO make const
+    #[must_use]
     pub fn get_rank_mask(rank: u32) -> BitBoard {
         (0xFF << (rank * BOARD_SIZE)).into()
     }
 
+    #[must_use]
     pub fn get_file_mask(file: u32) -> BitBoard {
         (0x0101_0101_0101_0101 << file).into()
     }
 
+    #[must_use]
     pub fn get_piece(&self, tile_pos: TilePos) -> Piece {
         for &piece in PIECES {
             if self[piece].get_bit_at(tile_pos) {
@@ -52,6 +56,7 @@ impl BitBoards {
         self.set_piece(piece_move.to, piece);
     }
 
+    #[must_use]
     pub fn get_player_occupied(&self, player: Player) -> BitBoard {
         let mut occupied = 0.into();
         for (i, board) in self.boards.iter().enumerate() {
@@ -64,6 +69,7 @@ impl BitBoards {
         occupied
     }
 
+    #[must_use]
     pub fn get_occupied(&self) -> BitBoard {
         let mut occupied = 0.into();
         for board in self.boards {
@@ -73,47 +79,15 @@ impl BitBoards {
         occupied
     }
 
+    /// # Panics
+    /// Panics if the player cannot be found from the piece at from
+    #[must_use]
     pub fn get_pawn_moves(&self, from: TilePos) -> BitBoard {
-        let player = self.get_piece(from).to_player().unwrap(); // TODO Unwrap used
+        let player = self
+            .get_piece(from)
+            .to_player()
+            .expect("Could not get player from Piece at from");
 
-        #[allow(clippy::too_many_arguments)]
-        fn get_pawn_moves_for(
-            pawns: u64,
-            opposing_pieces: u64,
-            empty: u64,
-            en_passant_tile: u64,
-            forward: i8,
-            start_rank: u32,
-            left_shift: i8,
-            right_shift: i8,
-            left_file_mask: u64,
-            right_file_mask: u64,
-        ) -> BitBoard {
-            // Pushing
-            let single_push = shift(pawns, forward) & empty;
-            let double_push = shift(
-                shift(pawns & BitBoards::get_rank_mask(start_rank).bits(), forward) & empty,
-                forward,
-            ) & empty;
-
-            // Capturing
-            let left_capture = shift(pawns, left_shift) & opposing_pieces & !right_file_mask;
-            let right_capture = shift(pawns, right_shift) & opposing_pieces & !left_file_mask;
-
-            // En Passant Capturing
-            let en_passant_capture_left =
-                shift(pawns, left_shift) & en_passant_tile & !right_file_mask;
-            let en_passant_capture_right =
-                shift(pawns, right_shift) & en_passant_tile & !left_file_mask;
-
-            (single_push
-                | double_push
-                | left_capture
-                | right_capture
-                | en_passant_capture_left
-                | en_passant_capture_right)
-                .into()
-        }
         // TODO promotions
 
         let pawn = 1 << from.to_index();
@@ -146,13 +120,19 @@ impl BitBoards {
         }
     }
 
+    /// # Panics
+    /// Panics if the player cannot be found from the piece at from
+    #[must_use]
     pub fn get_knight_moves(&self, from: TilePos) -> BitBoard {
-        let file_a: u64 = BitBoards::get_file_mask(0).bits();
-        let file_b: u64 = BitBoards::get_file_mask(1).bits();
-        let file_h: u64 = BitBoards::get_file_mask(6).bits();
-        let file_g: u64 = BitBoards::get_file_mask(7).bits();
+        let file_a: u64 = Self::get_file_mask(0).bits();
+        let file_b: u64 = Self::get_file_mask(1).bits();
+        let file_h: u64 = Self::get_file_mask(6).bits();
+        let file_g: u64 = Self::get_file_mask(7).bits();
 
-        let player = self.get_piece(from).to_player().unwrap(); // TODO Unwrap used
+        let player = self
+            .get_piece(from)
+            .to_player()
+            .expect("Could not get player from Piece at from"); // TODO Unwrap used
 
         let knight: BitBoard = (1 << from.to_index()).into();
 
@@ -186,11 +166,17 @@ impl BitBoards {
         moves & !self.get_player_occupied(player)
     }
 
+    /// # Panics
+    /// Panics if the player cannot be found from the piece at from
+    #[must_use]
     pub fn get_king_moves(&self, from: TilePos) -> BitBoard {
-        let file_a: u64 = BitBoards::get_file_mask(0).bits();
-        let file_h: u64 = BitBoards::get_file_mask(7).bits();
+        let file_a: u64 = Self::get_file_mask(0).bits();
+        let file_h: u64 = Self::get_file_mask(7).bits();
 
-        let player = self.get_piece(from).to_player().unwrap(); // TODO Unwrap used
+        let player = self
+            .get_piece(from)
+            .to_player()
+            .expect("Could not get player from Piece at from"); // TODO Unwrap used
         let king: BitBoard = (1 << from.to_index()).into();
 
         let mut moves: BitBoard = 0.into();
@@ -219,8 +205,8 @@ impl BitBoards {
     fn get_orthogonal_moves(&self, from: TilePos) -> BitBoard {
         let occupied = self.get_occupied().bits();
 
-        let file_a: u64 = BitBoards::get_file_mask(0).bits();
-        let file_h: u64 = BitBoards::get_file_mask(7).bits();
+        let file_a: u64 = Self::get_file_mask(0).bits();
+        let file_h: u64 = Self::get_file_mask(7).bits();
 
         let mut moves: BitBoard = 0.into();
 
@@ -237,11 +223,15 @@ impl BitBoards {
             temp &= temp - 1; // Pop the LSB
         }
 
-        let player = self.get_piece(from).to_player().unwrap();
+        let player = self
+            .get_piece(from)
+            .to_player()
+            .expect("Could not get player from Piece at from");
 
         moves & !self.get_player_occupied(player)
     }
 
+    #[must_use]
     pub fn get_rook_moves(&self, from: TilePos) -> BitBoard {
         self.get_orthogonal_moves(from)
     }
@@ -249,8 +239,8 @@ impl BitBoards {
     fn get_diagonal_moves(&self, from: TilePos) -> BitBoard {
         let occupied = self.get_occupied().bits();
 
-        let file_a: u64 = BitBoards::get_file_mask(0).bits();
-        let file_h: u64 = BitBoards::get_file_mask(7).bits();
+        let file_a: u64 = Self::get_file_mask(0).bits();
+        let file_h: u64 = Self::get_file_mask(7).bits();
 
         let mut moves: BitBoard = 0.into();
 
@@ -267,28 +257,35 @@ impl BitBoards {
             temp &= temp - 1;
         }
 
-        let player = self.get_piece(from).to_player().unwrap();
+        let player = self
+            .get_piece(from)
+            .to_player()
+            .expect("Could not get player from Piece at from");
 
         moves & !self.get_player_occupied(player)
     }
 
+    #[must_use]
     pub fn get_bishop_moves(&self, from: TilePos) -> BitBoard {
         self.get_diagonal_moves(from)
     }
 
+    #[must_use]
     pub fn get_queen_moves(&self, from: TilePos) -> BitBoard {
         self.get_orthogonal_moves(from) | self.get_diagonal_moves(from)
     }
 
+    /// # Panics
+    /// Panics if ``Piece::None`` is at from
     #[must_use]
     pub fn get_pseudolegal_moves(&self, from: TilePos) -> BitBoard {
         (match self.get_piece(from) {
-            Piece::BPawn | Piece::WPawn => BitBoards::get_pawn_moves,
-            Piece::BKnight | Piece::WKnight => BitBoards::get_knight_moves,
-            Piece::BKing | Piece::WKing => BitBoards::get_king_moves,
-            Piece::BRook | Piece::WRook => BitBoards::get_rook_moves,
-            Piece::BBishop | Piece::WBishop => BitBoards::get_bishop_moves,
-            Piece::BQueen | Piece::WQueen => BitBoards::get_queen_moves,
+            Piece::BPawn | Piece::WPawn => Self::get_pawn_moves,
+            Piece::BKnight | Piece::WKnight => Self::get_knight_moves,
+            Piece::BKing | Piece::WKing => Self::get_king_moves,
+            Piece::BRook | Piece::WRook => Self::get_rook_moves,
+            Piece::BBishop | Piece::WBishop => Self::get_bishop_moves,
+            Piece::BQueen | Piece::WQueen => Self::get_queen_moves,
             Piece::None => {
                 panic!("Tried to get pseudolegal moves of Piece::None");
             }
@@ -312,6 +309,7 @@ impl BitBoards {
             .collect::<Vec<_>>()
     }
 
+    #[must_use]
     pub fn get_attacked_tiles(&self, player: Player) -> BitBoard {
         let mut attacked = 0;
 
@@ -326,18 +324,19 @@ impl BitBoards {
 
                 bits &= bits - 1; // Clear LSB
 
-                attacked |= self.get_pseudolegal_moves(TilePos::from_index(from)).bits()
+                attacked |= self.get_pseudolegal_moves(TilePos::from_index(from)).bits();
             }
         }
 
         attacked.into()
     }
 
+    #[must_use]
     pub fn is_pos_attacked(&self, pos: TilePos) -> bool {
-        (match self.get_piece(pos).to_player() {
-            Some(player) => self.get_attacked_tiles(player.next_player()),
-            None => self.get_attacked_tiles(Player::White) | self.get_attacked_tiles(Player::Black),
-        } & (1 << pos.to_index()))
+        (self.get_piece(pos).to_player().map_or_else(
+            || self.get_attacked_tiles(Player::White) | self.get_attacked_tiles(Player::Black),
+            |player| self.get_attacked_tiles(player.next_player()),
+        ) & (1 << pos.to_index()))
         .bits()
             != 0
     }
@@ -359,6 +358,8 @@ impl BitBoards {
         test_board.is_pos_attacked(pos)
     }
 
+    /// # Panics
+    /// Panics if the player cannot be found from the piece at from
     #[must_use]
     pub fn get_possible_moves(&self, from: TilePos) -> Vec<PieceMove> {
         let mut moves = Vec::new();
@@ -372,7 +373,10 @@ impl BitBoards {
 
             // Add the move if it  doesn't make this player's king become attacked
             let new_move = PieceMove::new(from, to);
-            let player = self.get_piece(from).to_player().unwrap(); // TODO
+            let player = self
+                .get_piece(from)
+                .to_player()
+                .expect("Could not get player from Piece at from"); // TODO
             if !self.move_makes_pos_attacked(new_move, self.get_king_pos(player)) {
                 moves.push(new_move);
             }
@@ -511,7 +515,44 @@ impl std::ops::IndexMut<Piece> for BitBoards {
     }
 }
 
-fn sliding_moves_in_direction(
+#[allow(clippy::too_many_arguments)]
+fn get_pawn_moves_for(
+    pawns: u64,
+    opposing_pieces: u64,
+    empty: u64,
+    en_passant_tile: u64,
+    forward: i8,
+    start_rank: u32,
+    left_shift: i8,
+    right_shift: i8,
+    left_file_mask: u64,
+    right_file_mask: u64,
+) -> BitBoard {
+    // Pushing
+    let single_push = shift(pawns, forward) & empty;
+    let double_push = shift(
+        shift(pawns & BitBoards::get_rank_mask(start_rank).bits(), forward) & empty,
+        forward,
+    ) & empty;
+
+    // Capturing
+    let left_capture = shift(pawns, left_shift) & opposing_pieces & !right_file_mask;
+    let right_capture = shift(pawns, right_shift) & opposing_pieces & !left_file_mask;
+
+    // En Passant Capturing
+    let en_passant_capture_left = shift(pawns, left_shift) & en_passant_tile & !right_file_mask;
+    let en_passant_capture_right = shift(pawns, right_shift) & en_passant_tile & !left_file_mask;
+
+    (single_push
+        | double_push
+        | left_capture
+        | right_capture
+        | en_passant_capture_left
+        | en_passant_capture_right)
+        .into()
+}
+
+const fn sliding_moves_in_direction(
     mut position: u64,
     occupied: u64,
     shift_amt: i8,
@@ -536,7 +577,7 @@ fn sliding_moves_in_direction(
     moves
 }
 
-fn shift(bits: u64, shift_amt: i8) -> u64 {
+const fn shift(bits: u64, shift_amt: i8) -> u64 {
     if shift_amt > 0 {
         bits << shift_amt
     } else {

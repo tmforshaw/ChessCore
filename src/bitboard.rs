@@ -18,6 +18,7 @@ impl BitBoard {
         Self { bits }
     }
 
+    #[must_use]
     pub fn to_tile_positions(&self) -> Vec<TilePos> {
         let mut bits = self.bits;
 
@@ -124,7 +125,7 @@ impl std::ops::Shl<u32> for BitBoard {
 
 impl std::ops::ShlAssign<u32> for BitBoard {
     fn shl_assign(&mut self, rhs: u32) {
-        self.bits <<= rhs
+        self.bits <<= rhs;
     }
 }
 
@@ -140,7 +141,7 @@ impl std::ops::Shr<u32> for BitBoard {
 
 impl std::ops::ShrAssign<u32> for BitBoard {
     fn shr_assign(&mut self, rhs: u32) {
-        self.bits >>= rhs
+        self.bits >>= rhs;
     }
 }
 
@@ -156,7 +157,7 @@ impl std::ops::BitAnd<u64> for BitBoard {
 
 impl std::ops::BitAndAssign<u64> for BitBoard {
     fn bitand_assign(&mut self, rhs: u64) {
-        self.bits &= rhs
+        self.bits &= rhs;
     }
 }
 
@@ -172,7 +173,7 @@ impl std::ops::BitAnd<Self> for BitBoard {
 
 impl std::ops::BitAndAssign<Self> for BitBoard {
     fn bitand_assign(&mut self, rhs: Self) {
-        self.bits &= rhs.bits()
+        self.bits &= rhs.bits();
     }
 }
 
@@ -188,7 +189,7 @@ impl std::ops::BitOr<u64> for BitBoard {
 
 impl std::ops::BitOrAssign<u64> for BitBoard {
     fn bitor_assign(&mut self, rhs: u64) {
-        self.bits |= rhs
+        self.bits |= rhs;
     }
 }
 
@@ -204,7 +205,7 @@ impl std::ops::BitOr<Self> for BitBoard {
 
 impl std::ops::BitOrAssign<Self> for BitBoard {
     fn bitor_assign(&mut self, rhs: Self) {
-        self.bits |= rhs.bits()
+        self.bits |= rhs.bits();
     }
 }
 
