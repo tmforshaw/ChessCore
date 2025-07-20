@@ -9,6 +9,16 @@ use crate::{
 
 pub const BOARD_SIZE: u32 = 8;
 
+pub const NORMAL_START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
+pub const CASTLING_FEN: &str = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1"; // Castling Test Board
+pub const EN_PASSANT_FEN: &str = "rnbqkbnr/p1p1pppp/1p6/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3"; // En Pasasnt Test Board
+pub const SCHOLARS_MATE_FEN: &str = "rnbqkbnr/1ppp1ppp/8/p3p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4"; // Scholar's Mate Board
+pub const PROMOTION_FEN: &str = "8/1ppkp1P1/3pp3/8/8/5PP1/p2PPKP1/8 w - - 1 1"; // Promotion Test Board
+pub const PROMOTION_CAPTURE_FEN: &str = "rn1qk1nr/pPppppPp/8/8/8/8/PpPPPPpP/RN1QK1NR w KQkq - 0 1"; // Capture Promotion Corner
+pub const STALEMATE_FEN: &str = "rnbqkbnr/pppppppp/8/8/6r1/7p/7P/7K b - - 1 1"; // Stalemate Test Board
+
+pub const DEFAULT_FEN: &str = CASTLING_FEN;
+
 #[derive(Default, Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Player {
     #[default]
@@ -24,11 +34,7 @@ impl Player {
         PLAYERS
             .iter()
             .enumerate()
-            .find_map(
-                |(i, test_player)| {
-                    if test_player == self { Some(i) } else { None }
-                },
-            )
+            .find_map(|(i, test_player)| if test_player == self { Some(i) } else { None })
             .unwrap_or_else(|| panic!("Could not find index of player: {self:?}"))
     }
 
@@ -71,11 +77,7 @@ impl TilePos {
     /// # Errors
     /// Throws a ``TryFromIntError`` if the file cannot be converted to an integer
     pub fn to_algebraic(&self) -> Result<String, std::num::TryFromIntError> {
-        Ok(format!(
-            "{}{}",
-            (b'a' + u8::try_from(self.file)?) as char,
-            self.rank + 1
-        ))
+        Ok(format!("{}{}", (b'a' + u8::try_from(self.file)?) as char, self.rank + 1))
     }
 }
 
@@ -116,21 +118,6 @@ pub struct Board {
 
 impl Default for Board {
     fn default() -> Self {
-        // const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
-
-        // const DEFAULT_FEN: &str = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1"; // Castling Test Board
-
-        // const DEFAULT_FEN: &str = "rnbqkbnr/p1p1pppp/1p6/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3"; // En Pasasnt Test Board
-
-        const DEFAULT_FEN: &str =
-            "rnbqkbnr/1ppp1ppp/8/p3p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4"; // Scholar's Mate Board
-
-        // const DEFAULT_FEN: &str = "8/1ppkp1P1/3pp3/8/8/5PP1/p2PPKP1/8 w - - 1 1"; // Promotion Test Board
-
-        // const DEFAULT_FEN: &str = "rn1qk1nr/pPppppPp/8/8/8/8/PpPPPPpP/RN1QK1NR w KQkq - 0 1"; // Capture Promotion Corner
-
-        // const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/6r1/7p/7P/7K b - - 1 1"; // Stalemate Test Board
-
         match Self::from_fen(DEFAULT_FEN) {
             Ok(board) => board,
             Err(e) => panic!("Board could not be created from FEN:\n\t{e:?}"),
@@ -212,8 +199,7 @@ impl Board {
                     ' ' => section_index += 1,
                     c => {
                         if !c.is_ascii_digit() {
-                            let algebraic_en_passant =
-                                fen.chars().skip(chr_index).take(2).collect::<Vec<_>>();
+                            let algebraic_en_passant = fen.chars().skip(chr_index).take(2).collect::<Vec<_>>();
 
                             match (algebraic_en_passant[0], algebraic_en_passant[1]) {
                                 ('a'..='h', '0'..='8') => {
@@ -244,8 +230,7 @@ impl Board {
     /// # Panics
     // Panics if en passant, castling, or promotion was not handled correctly
     pub fn apply_move(&mut self, mut piece_move: PieceMove) -> PieceMoveType {
-        self.positions
-            .apply_move(&mut piece_move, &mut self.move_history);
+        self.positions.apply_move(&mut piece_move, &mut self.move_history);
 
         self.next_player();
 
@@ -315,14 +300,8 @@ impl Board {
         let rank_diff = u32::from(rank_diff_isize != 0);
 
         Some(
-            (1..((file_diff_isize.unsigned_abs() as u32)
-                .max(rank_diff_isize.unsigned_abs() as u32)))
-                .map(|k| {
-                    TilePos::new(
-                        lower_pos.file + k * file_diff,
-                        lower_pos.rank + k * rank_diff,
-                    )
-                })
+            (1..((file_diff_isize.unsigned_abs() as u32).max(rank_diff_isize.unsigned_abs() as u32)))
+                .map(|k| TilePos::new(lower_pos.file + k * file_diff, lower_pos.rank + k * rank_diff))
                 .collect::<Vec<_>>(),
         )
     }

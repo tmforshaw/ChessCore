@@ -11,3 +11,6 @@ pub mod board;
 pub mod move_history;
 pub mod piece;
 pub mod piece_move;
+
+#[cfg(test)]
+pub mod tests;

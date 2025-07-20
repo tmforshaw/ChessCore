@@ -75,19 +75,9 @@ impl Piece {
     #[must_use]
     pub const fn to_player(self) -> Option<Player> {
         match self {
-            Self::BQueen
-            | Self::BKing
-            | Self::BRook
-            | Self::BKnight
-            | Self::BBishop
-            | Self::BPawn => Some(Player::Black),
+            Self::BQueen | Self::BKing | Self::BRook | Self::BKnight | Self::BBishop | Self::BPawn => Some(Player::Black),
 
-            Self::WQueen
-            | Self::WKing
-            | Self::WRook
-            | Self::WKnight
-            | Self::WBishop
-            | Self::WPawn => Some(Player::White),
+            Self::WQueen | Self::WKing | Self::WRook | Self::WKnight | Self::WBishop | Self::WPawn => Some(Player::White),
 
             Self::None => None,
         }

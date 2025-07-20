@@ -117,9 +117,7 @@ impl std::ops::Shl<u32> for BitBoard {
     type Output = Self;
 
     fn shl(self, rhs: u32) -> Self {
-        Self {
-            bits: self.bits << rhs,
-        }
+        Self { bits: self.bits << rhs }
     }
 }
 
@@ -133,9 +131,7 @@ impl std::ops::Shr<u32> for BitBoard {
     type Output = Self;
 
     fn shr(self, rhs: u32) -> Self {
-        Self {
-            bits: self.bits >> rhs,
-        }
+        Self { bits: self.bits >> rhs }
     }
 }
 
@@ -149,9 +145,7 @@ impl std::ops::BitAnd<u64> for BitBoard {
     type Output = Self;
 
     fn bitand(self, rhs: u64) -> Self {
-        Self {
-            bits: self.bits & rhs,
-        }
+        Self { bits: self.bits & rhs }
     }
 }
 
@@ -181,9 +175,7 @@ impl std::ops::BitOr<u64> for BitBoard {
     type Output = Self;
 
     fn bitor(self, rhs: u64) -> Self {
-        Self {
-            bits: self.bits | rhs,
-        }
+        Self { bits: self.bits | rhs }
     }
 }
 

@@ -5,7 +5,7 @@ use crate::{
     board::{BOARD_SIZE, PLAYERS, Player, TilePos},
     move_history::{HistoryMove, PieceMoveHistory},
     piece::{COLOUR_AMT, PIECE_AMT, PIECES, Piece},
-    piece_move::PieceMove,
+    piece_move::{PieceMove, PieceMoveType},
 };
 
 #[derive(Default, Clone, Eq, PartialEq)]
@@ -90,9 +90,7 @@ impl BitBoards {
         let to_idx = piece_move.to.to_index();
 
         let piece = self.get_piece(piece_move.from);
-        let player = piece
-            .to_player()
-            .expect("Could not get Player from piece at piece_move.from"); // TODO
+        let player = piece.to_player().expect("Could not get Player from piece at piece_move.from"); // TODO
 
         // Detect which move_type this piece_move is
 
@@ -131,12 +129,35 @@ impl BitBoards {
         // Remember the castling rights before the move was made
         let castling_rights_before = self.castling_rights;
 
+        // Might need to update castling rights
+        if piece == Piece::get_player_piece(player, Piece::WKing) || piece == Piece::get_player_piece(player, Piece::WRook) {
+            let castling_rights = match player {
+                Player::White => &mut self.castling_rights[0],
+                Player::Black => &mut self.castling_rights[1],
+            };
+
+            // King was moved
+            if piece == Piece::get_player_piece(player, Piece::WKing) {
+                castling_rights.0 = false;
+                castling_rights.1 = false;
+            } else {
+                // Kingside Move
+                if piece_move.from.file == 7 {
+                    castling_rights.0 = false;
+                }
+                // Queenside Move
+                else {
+                    castling_rights.1 = false;
+                }
+            }
+        }
+
         match piece_move.move_type {
-            crate::piece_move::PieceMoveType::Normal => {
+            PieceMoveType::Normal => {
                 // Set the moved to position to this piece
                 self[piece].set_bit(to_idx, true);
             }
-            crate::piece_move::PieceMoveType::EnPassant => {
+            PieceMoveType::EnPassant => {
                 let captured_pos = TilePos::new(piece_move.to.file, piece_move.from.rank);
                 let captured_idx = captured_pos.to_index();
                 let captured_pawn = Piece::get_player_piece(player.next_player(), Piece::WPawn);
@@ -148,18 +169,12 @@ impl BitBoards {
                 // Set the captured_piece so it is remembered by move history
                 captured_piece = captured_pawn;
             }
-            crate::piece_move::PieceMoveType::Castling => {
+            PieceMoveType::Castling => {
                 // Get rook position depending on if this was kingside or queenside castle
                 let (rook_from, rook_to) = if piece_move.to.file > piece_move.from.file {
-                    (
-                        TilePos::new(7, piece_move.from.rank),
-                        TilePos::new(5, piece_move.from.rank),
-                    )
+                    (TilePos::new(7, piece_move.from.rank), TilePos::new(5, piece_move.from.rank))
                 } else {
-                    (
-                        TilePos::new(0, piece_move.from.rank),
-                        TilePos::new(3, piece_move.from.rank),
-                    )
+                    (TilePos::new(0, piece_move.from.rank), TilePos::new(3, piece_move.from.rank))
                 };
 
                 // Clear the rook from position and set its to position
@@ -170,7 +185,7 @@ impl BitBoards {
                 // Set the moved to position to this piece
                 self[piece].set_bit(to_idx, true);
             }
-            crate::piece_move::PieceMoveType::Promotion(promoted_to) => {
+            PieceMoveType::Promotion(promoted_to) => {
                 // Set the moved to position to this piece
                 self[promoted_to].set_bit(to_idx, true);
             }
@@ -188,12 +203,8 @@ impl BitBoards {
             && (piece_move.from.rank as i8 - piece_move.to.rank as i8).abs() == 2
         // TODO Need to check starting rank
         {
-            self.en_passant_tile = 1
-                << TilePos::new(
-                    piece_move.from.file,
-                    u32::midpoint(piece_move.from.rank, piece_move.to.rank),
-                )
-                .to_index();
+            self.en_passant_tile =
+                1 << TilePos::new(piece_move.from.file, u32::midpoint(piece_move.from.rank, piece_move.to.rank)).to_index();
         } else {
             self.en_passant_tile = 0;
         }
@@ -223,16 +234,14 @@ impl BitBoards {
         let to_idx = piece_move.to.to_index();
 
         let piece = self.get_piece(piece_move.to);
-        let player = piece
-            .to_player()
-            .expect("Could not get Player from piece at piece_move.from"); // TODO
+        let player = piece.to_player().expect("Could not get Player from piece at piece_move.from"); // TODO
 
         // Clear the to position
         self[piece].set_bit(to_idx, false);
 
         match piece_move.move_type {
-            crate::piece_move::PieceMoveType::Normal => self[piece].set_bit(from_idx, true),
-            crate::piece_move::PieceMoveType::EnPassant => {
+            PieceMoveType::Normal => self[piece].set_bit(from_idx, true),
+            PieceMoveType::EnPassant => {
                 self[piece].set_bit(from_idx, true);
 
                 let captured_pos = TilePos::new(piece_move.to.file, piece_move.from.rank);
@@ -241,20 +250,14 @@ impl BitBoards {
 
                 self[captured_pawn].set_bit(captured_idx, true);
             }
-            crate::piece_move::PieceMoveType::Castling => {
+            PieceMoveType::Castling => {
                 self[piece].set_bit(from_idx, true);
 
                 // Get rook position depending on if this was kingside or queenside castle
                 let (rook_from, rook_to) = if piece_move.to.file > piece_move.from.file {
-                    (
-                        TilePos::new(7, piece_move.from.rank),
-                        TilePos::new(5, piece_move.from.rank),
-                    )
+                    (TilePos::new(7, piece_move.from.rank), TilePos::new(5, piece_move.from.rank))
                 } else {
-                    (
-                        TilePos::new(0, piece_move.from.rank),
-                        TilePos::new(3, piece_move.from.rank),
-                    )
+                    (TilePos::new(0, piece_move.from.rank), TilePos::new(3, piece_move.from.rank))
                 };
 
                 // Clear the rook from position and set its to position
@@ -262,7 +265,7 @@ impl BitBoards {
                 self[rook].set_bit(rook_to.to_index(), false);
                 self[rook].set_bit(rook_from.to_index(), true);
             }
-            crate::piece_move::PieceMoveType::Promotion(_) => {
+            PieceMoveType::Promotion(_) => {
                 let pawn = Piece::get_player_piece(player, Piece::WPawn);
                 self[pawn].set_bit(from_idx, true);
             }
@@ -345,33 +348,12 @@ impl BitBoards {
     /// Panics if the player cannot be found from the piece at from
     #[must_use]
     pub fn get_king_moves(&self, from: TilePos) -> BitBoard {
-        let file_a: u64 = Self::get_file_mask(0).bits();
-        let file_h: u64 = Self::get_file_mask(7).bits();
-
         let player = self
             .get_piece(from)
             .to_player()
             .expect("Could not get player from Piece at from"); // TODO Unwrap used
-        let king: BitBoard = (1 << from.to_index()).into();
 
-        let mut moves: BitBoard = 0.into();
-
-        // Up
-        moves |= king << 8;
-        // Down
-        moves |= king >> 8;
-        // Left
-        moves |= (king >> 1) & !file_h;
-        // Right
-        moves |= (king << 1) & !file_a;
-        // Up-Left
-        moves |= (king << 7) & !file_h;
-        // Up-Right
-        moves |= (king << 9) & !file_a;
-        // Down-Left
-        moves |= (king >> 9) & !file_h;
-        // Down-Right
-        moves |= (king >> 7) & !file_a;
+        let mut moves: BitBoard = get_king_moves_no_castling(self, from);
 
         // Castling TODO Remove duplicated parts of this code
         match player {
@@ -518,6 +500,19 @@ impl BitBoards {
         get_pawn_moves_for_player(self, from, player, true)
     }
 
+    /// # Panics
+    /// Panics if ``Player`` can't be found using ``from``
+    #[must_use]
+    pub fn get_king_pseudolegal_moves(&self, from: TilePos) -> BitBoard {
+        // TODO Duplicated code
+        let player = self
+            .get_piece(from)
+            .to_player()
+            .expect("Could not get player from Piece at from");
+
+        get_pawn_moves_for_player(self, from, player, true)
+    }
+
     // END ---- Pseudolegal Move Generation ----------------------------------------------------------------------------------------------------------
 
     #[must_use]
@@ -542,6 +537,7 @@ impl BitBoards {
         let mut attacked = 0;
 
         for (i, &board) in self.boards.iter().enumerate() {
+            // Check for opposing player's attacks
             if PIECES[i].is_player(player) {
                 continue;
             }
@@ -555,12 +551,15 @@ impl BitBoards {
                 let from_pos = TilePos::from_index(from);
 
                 // Only count capturing moves for pawns
-                attacked |=
-                    if PIECES[i] == Piece::get_player_piece(player.next_player(), Piece::WPawn) {
-                        self.get_pawn_pseudolegal_capturing_moves(from_pos).bits()
-                    } else {
-                        self.get_pseudolegal_moves(from_pos).bits()
-                    };
+                attacked |= if PIECES[i] == Piece::get_player_piece(player.next_player(), Piece::WPawn) {
+                    self.get_pawn_pseudolegal_capturing_moves(from_pos).bits()
+                }
+                // Don't count castling moves for king
+                else if PIECES[i] == Piece::get_player_piece(player.next_player(), Piece::WKing) {
+                    self.get_king_pseudolegal_moves(from_pos).bits()
+                } else {
+                    self.get_pseudolegal_moves(from_pos).bits()
+                };
             }
         }
 
@@ -572,7 +571,7 @@ impl BitBoards {
         // TODO should have to do next player but it needs it without for some reason
         (self.get_piece(pos).to_player().map_or_else(
             || self.get_attacked_tiles(Player::White) | self.get_attacked_tiles(Player::Black),
-            |player| self.get_attacked_tiles(player),
+            |player| self.get_attacked_tiles(player.next_player()),
         ) & (1 << pos.to_index()))
         .bits()
             != 0
@@ -666,7 +665,7 @@ impl BitBoards {
         (((1u64 << (end + 1)) - 1) ^ ((1u64 << start) - 1)).into()
     }
 
-    // Checks if files are empty between two file indices
+    // Checks if indexes are empty between two files/ranks
     #[must_use]
     pub fn is_empty_between(&self, start: u32, end: u32) -> bool {
         let mask = self.get_between_mask(start, end);
@@ -676,10 +675,7 @@ impl BitBoards {
     #[must_use]
     pub fn has_game_ended(&self) -> Option<Option<Player>> {
         // Get the position of all kings
-        for (player, king_pos) in PLAYERS
-            .iter()
-            .map(|&player| (player, self.get_king_pos(player)))
-        {
+        for (player, king_pos) in PLAYERS.iter().map(|&player| (player, self.get_king_pos(player))) {
             // No moves for this player
             if self
                 .get_player_occupied(player)
@@ -794,11 +790,7 @@ fn get_pawn_moves_for(
     };
 
     // Don't check for opposing pieces when you want all the attacking pieces
-    let opposing_pieces = if only_captures {
-        u64::MAX
-    } else {
-        opposing_pieces
-    };
+    let opposing_pieces = if only_captures { u64::MAX } else { opposing_pieces };
 
     // Capturing
     let left_capture = shift_i8(pawns, left_shift) & opposing_pieces & !left_file_mask;
@@ -806,24 +798,12 @@ fn get_pawn_moves_for(
 
     // En Passant Capturing
     let en_passant_capture_left = shift_i8(pawns, left_shift) & en_passant_tile & !left_file_mask;
-    let en_passant_capture_right =
-        shift_i8(pawns, right_shift) & en_passant_tile & !right_file_mask;
+    let en_passant_capture_right = shift_i8(pawns, right_shift) & en_passant_tile & !right_file_mask;
 
-    (single_push
-        | double_push
-        | left_capture
-        | right_capture
-        | en_passant_capture_left
-        | en_passant_capture_right)
-        .into()
+    (single_push | double_push | left_capture | right_capture | en_passant_capture_left | en_passant_capture_right).into()
 }
 
-fn get_pawn_moves_for_player(
-    bitboards: &BitBoards,
-    from: TilePos,
-    player: Player,
-    only_captures: bool,
-) -> BitBoard {
+fn get_pawn_moves_for_player(bitboards: &BitBoards, from: TilePos, player: Player, only_captures: bool) -> BitBoard {
     let pawn = 1 << from.to_index();
 
     match player {
@@ -856,12 +836,40 @@ fn get_pawn_moves_for_player(
     }
 }
 
-const fn sliding_moves_in_direction(
-    mut position: u64,
-    occupied: u64,
-    shift_amt: i8,
-    edge_mask: u64,
-) -> u64 {
+fn get_king_moves_no_castling(bitboards: &BitBoards, from: TilePos) -> BitBoard {
+    let file_a: u64 = BitBoards::get_file_mask(0).bits();
+    let file_h: u64 = BitBoards::get_file_mask(7).bits();
+
+    let player = bitboards
+        .get_piece(from)
+        .to_player()
+        .expect("Could not get player from Piece at from"); // TODO Unwrap used
+    let king: BitBoard = (1 << from.to_index()).into();
+
+    let mut moves: BitBoard = 0.into();
+
+    // Up
+    moves |= king << 8;
+    // Down
+    moves |= king >> 8;
+    // Left
+    moves |= (king >> 1) & !file_h;
+    // Right
+    moves |= (king << 1) & !file_a;
+    // Up-Left
+    moves |= (king << 7) & !file_h;
+    // Up-Right
+    moves |= (king << 9) & !file_a;
+    // Down-Left
+    moves |= (king >> 9) & !file_h;
+    // Down-Right
+    moves |= (king >> 7) & !file_a;
+
+    // Remove own pieces squares
+    moves & !bitboards.get_player_occupied(player)
+}
+
+const fn sliding_moves_in_direction(mut position: u64, occupied: u64, shift_amt: i8, edge_mask: u64) -> u64 {
     let mut moves = 0;
     loop {
         // Shift position by one step
