@@ -8,7 +8,6 @@ use crate::{
         PieceMove, PieceMoveType, apply_promotion, handle_castling, handle_en_passant,
         perform_castling, perform_promotion,
     },
-    possible_moves::{get_possible_moves, get_pseudolegal_moves},
 };
 
 pub const BOARD_SIZE: u32 = 8;
@@ -307,7 +306,7 @@ impl Board {
         // TODO Duplicated Code
 
         // Check if this move caused the game to end
-        let game_didnt_end = self.has_game_ended().is_none();
+        let game_didnt_end = self.positions.has_game_ended().is_none();
 
         let Some(history_move) = self.move_history.traverse_prev() else {
             return;
@@ -796,19 +795,6 @@ impl Board {
         true
     }
 
-    #[must_use]
-    pub const fn get_player_king(&self, player: Player) -> Piece {
-        match player {
-            Player::White => Piece::WKing,
-            Player::Black => Piece::BKing,
-        }
-    }
-
-    #[must_use]
-    pub fn get_king_pos(&self, player: Player) -> TilePos {
-        self.positions[self.get_player_king(player)].to_tile_positions()[0] // Should always have a king
-    }
-
     // #[must_use]
     // pub fn get_all_possible_moves(&self, player: Player) -> Vec<PieceMove> {
     //     self.positions
@@ -838,34 +824,4 @@ impl Board {
     //         .flat_map(IntoIterator::into_iter)
     //         .collect::<Vec<_>>()
     // }
-
-    #[must_use]
-    pub fn has_game_ended(&self) -> Option<Option<Player>> {
-        // Get the position of all kings
-        for (player, king_pos) in PLAYERS
-            .iter()
-            .map(|&player| (player, self.get_king_pos(player)))
-        {
-            // No moves for this player
-            if self
-                .get_all_player_piece_pos(player)
-                .iter()
-                .filter_map(|&piece_pos| get_possible_moves(self, piece_pos))
-                .flat_map(IntoIterator::into_iter)
-                .next()
-                .is_none()
-            {
-                // King is in check, it is checkmate
-                if self.positions.is_pos_attacked(king_pos) {
-                    let opposite_player = player.next_player();
-                    return Some(Some(opposite_player));
-                }
-
-                // Stalemate
-                return Some(None);
-            }
-        }
-
-        None
-    }
 }

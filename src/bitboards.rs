@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::{
     bitboard::BitBoard,
-    board::{BOARD_SIZE, Player, TilePos},
+    board::{BOARD_SIZE, PLAYERS, Player, TilePos},
     piece::{COLOUR_AMT, PIECE_AMT, PIECES, Piece},
     piece_move::PieceMove,
 };
@@ -158,29 +158,29 @@ impl BitBoards {
 
         let mut moves: BitBoard = 0.into();
 
-        // 2 up, 1 right (<< 17), no wrap if not on file H
+        // 2 up, 1 right (<< 17), no wrap if not on file A
         moves |= (knight << 17) & !file_a;
 
-        // 2 up, 1 left (<< 15), no wrap if not on file A
+        // 2 up, 1 left (<< 15), no wrap if not on file H
         moves |= (knight << 15) & !file_h;
 
-        // 1 up, 2 right (<< 10), no wrap if not on files G or H
-        moves |= (knight << 10) & !(file_b | file_a);
+        // 1 up, 2 right (<< 10), no wrap if not on files A or B
+        moves |= (knight << 10) & !(file_a | file_b);
 
-        // 1 up, 2 left (<< 6), no wrap if not on files A or B
-        moves |= (knight << 6) & !(file_h | file_g);
+        // 1 up, 2 left (<< 6), no wrap if not on files G or H
+        moves |= (knight << 6) & !(file_g | file_h);
 
-        // 2 down, 1 left (>> 17), no wrap if not on file A
+        // 2 down, 1 left (>> 17), no wrap if not on file H
         moves |= (knight >> 17) & !file_h;
 
-        // 2 down, 1 right (>> 15), no wrap if not on file H
+        // 2 down, 1 right (>> 15), no wrap if not on file A
         moves |= (knight >> 15) & !file_a;
 
-        // 1 down, 2 left (>> 10), no wrap if not on files A or B
-        moves |= (knight >> 10) & !(file_h | file_g);
+        // 1 down, 2 left (>> 10), no wrap if not on files G or H
+        moves |= (knight >> 10) & !(file_g | file_h);
 
-        // 1 down, 2 right (>> 6), no wrap if not on files G or H
-        moves |= (knight >> 6) & !(file_b | file_a);
+        // 1 down, 2 right (>> 6), no wrap if not on files A or B
+        moves |= (knight >> 6) & !(file_a | file_b);
 
         // Remove squares occupied by own pieces
         moves & !self.get_player_occupied(player)
@@ -370,35 +370,83 @@ impl BitBoards {
             // Clear LSB
             bits &= bits - 1;
 
-            moves.push(PieceMove::new(from, to));
+            // Add the move if it  doesn't make this player's king become attacked
+            let new_move = PieceMove::new(from, to);
+            let player = self.get_piece(from).to_player().unwrap(); // TODO
+            if !self.move_makes_pos_attacked(new_move, self.get_king_pos(player)) {
+                moves.push(new_move);
+            }
         }
 
         moves
     }
 
-    // #[must_use]
-    // pub fn get_all_possible_moves(&self, player: Player) -> Vec<PieceMove> {
-    //     let mut moves = Vec::new();
+    #[must_use]
+    pub fn get_all_possible_moves(&self, player: Player) -> Vec<PieceMove> {
+        let mut moves = Vec::new();
 
-    //     for (i, &board) in self.boards.iter().enumerate() {
-    //         if !PIECES[i].is_player(player) {
-    //             continue;
-    //         }
+        for (i, &board) in self.boards.iter().enumerate() {
+            if !PIECES[i].is_player(player) {
+                continue;
+            }
 
-    //         let mut bits = board.bits();
-    //         while bits != 0 {
-    //             let from = TilePos::from_index(bits.trailing_zeros());
+            let mut bits = board.bits();
+            while bits != 0 {
+                let from = TilePos::from_index(bits.trailing_zeros());
 
-    //             // Clear LSB
-    //             bits &= bits - 1;
+                // Clear LSB
+                bits &= bits - 1;
 
-    //             let mut possible_moves = self.get_possible_moves(from);
-    //             moves.append(&mut possible_moves);
-    //         }
-    //     }
+                let mut possible_moves = self.get_possible_moves(from);
+                moves.append(&mut possible_moves);
+            }
+        }
 
-    //     moves
-    // }
+        moves
+    }
+
+    #[must_use]
+    pub const fn get_player_king(&self, player: Player) -> Piece {
+        match player {
+            Player::White => Piece::WKing,
+            Player::Black => Piece::BKing,
+        }
+    }
+
+    #[must_use]
+    pub fn get_king_pos(&self, player: Player) -> TilePos {
+        self[self.get_player_king(player)].to_tile_positions()[0] // Should always have a king
+    }
+
+    #[must_use]
+    pub fn has_game_ended(&self) -> Option<Option<Player>> {
+        // Get the position of all kings
+        for (player, king_pos) in PLAYERS
+            .iter()
+            .map(|&player| (player, self.get_king_pos(player)))
+        {
+            // No moves for this player
+            if self
+                .get_player_occupied(player)
+                .to_tile_positions()
+                .iter()
+                .flat_map(|&piece_pos| self.get_possible_moves(piece_pos))
+                .next()
+                .is_none()
+            {
+                // King is in check, it is checkmate
+                if self.is_pos_attacked(king_pos) {
+                    let opposite_player = player.next_player();
+                    return Some(Some(opposite_player));
+                }
+
+                // Stalemate
+                return Some(None);
+            }
+        }
+
+        None
+    }
 }
 
 impl fmt::Display for BitBoards {
@@ -463,15 +511,16 @@ impl std::ops::IndexMut<Piece> for BitBoards {
     }
 }
 
-fn sliding_moves_in_direction(mut position: u64, occupied: u64, shift: i8, edge_mask: u64) -> u64 {
+fn sliding_moves_in_direction(
+    mut position: u64,
+    occupied: u64,
+    shift_amt: i8,
+    edge_mask: u64,
+) -> u64 {
     let mut moves = 0;
     loop {
         // Shift position by one step
-        if shift > 0 {
-            position = (position << shift) & !edge_mask;
-        } else {
-            position = (position >> (-shift)) & !edge_mask;
-        }
+        position = shift(position, shift_amt) & !edge_mask;
 
         if position == 0 {
             break;

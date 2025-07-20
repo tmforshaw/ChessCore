@@ -251,7 +251,7 @@ pub fn handle_castling(
         // Only update if the castling rights aren't already false
         if board.castling_rights[player_index] != (false, false) {
             // King was moved
-            if moved_piece == board.get_player_king(board.get_player()) {
+            if moved_piece == board.positions.get_player_king(board.get_player()) {
                 board.castling_rights[player_index] = (false, false);
             }
             // Rook was moved
@@ -286,7 +286,7 @@ pub fn perform_castling(
     // If piece is this player's king, and the king moved 2 spaces
     let file_diff_isize =
         isize::try_from(piece_move.to.file).ok()? - isize::try_from(piece_move.from.file).ok()?;
-    if moved_piece == board.get_player_king(board.get_player())
+    if moved_piece == board.positions.get_player_king(board.get_player())
         && file_diff_isize.unsigned_abs() == 2
         || undo
     {
