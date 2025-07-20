@@ -17,7 +17,7 @@ pub const PROMOTION_FEN: &str = "8/1ppkp1P1/3pp3/8/8/5PP1/p2PPKP1/8 w - - 1 1"; 
 pub const PROMOTION_CAPTURE_FEN: &str = "rn1qk1nr/pPppppPp/8/8/8/8/PpPPPPpP/RN1QK1NR w KQkq - 0 1"; // Capture Promotion Corner
 pub const STALEMATE_FEN: &str = "rnbqkbnr/pppppppp/8/8/6r1/7p/7P/7K b - - 1 1"; // Stalemate Test Board
 
-pub const DEFAULT_FEN: &str = CASTLING_FEN;
+pub const DEFAULT_FEN: &str = NORMAL_START_FEN;
 
 #[derive(Default, Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Player {
