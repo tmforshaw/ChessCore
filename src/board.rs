@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::{
     bitboards::BitBoards,
-    move_history::PieceMoveHistory,
+    move_history::{HistoryMove, PieceMoveHistory},
     piece::{COLOUR_AMT, Piece},
     piece_move::{PieceMove, PieceMoveType},
 };
@@ -116,9 +116,9 @@ pub struct Board {
 
 impl Default for Board {
     fn default() -> Self {
-        const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
+        // const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // Normal Starting Board
 
-        // const DEFAULT_FEN: &str = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1"; // Castling Test Board
+        const DEFAULT_FEN: &str = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1"; // Castling Test Board
 
         // const DEFAULT_FEN: &str = "rnbqkbnr/p1p1pppp/1p6/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3"; // En Pasasnt Test Board
 
@@ -152,8 +152,6 @@ impl Board {
         let mut board = Self {
             positions: BitBoards::default(),
             player: Player::default(),
-            // castling_rights: [(false, false); COLOUR_AMT],
-            // en_passant_on_last_move: None,
             half_move_counter: 0,
             full_move_counter: 1,
             move_history: PieceMoveHistory::default(),
@@ -245,61 +243,9 @@ impl Board {
 
     /// # Panics
     // Panics if en passant, castling, or promotion was not handled correctly
-    pub fn apply_move(&mut self, piece_move: PieceMove) -> PieceMoveType {
-        // TODO Duplicated Code
-
-        // let mut piece_captured = false;
-
-        // // Capture any pieces that should be captured
-        // let mut piece_moved_to = if self.positions.get_piece(piece_move.to) == Piece::None {
-        //     Piece::None
-        // } else {
-        //     piece_captured = true;
-
-        //     self.positions.get_piece(piece_move.to)
-        // };
-
-        // let moved_piece = self.positions.get_piece(piece_move.from);
-
-        // // Handle promotion
-        // piece_move = apply_promotion(self, moved_piece, piece_move);
-
-        // // Handle en passant, if this move is en passant, or if this move allows en passant on the next move
-        // let en_passant_tile;
-        // (en_passant_tile, piece_move, piece_captured, piece_moved_to) = handle_en_passant(
-        //     self,
-        //     piece_move,
-        //     moved_piece,
-        //     piece_captured,
-        //     piece_moved_to,
-        // )
-        // .expect("Could not handle en passant in apply_move");
-
-        // // Handle Castling
-        // let castling_rights_before_move;
-        // (castling_rights_before_move, piece_move, _) =
-        //     handle_castling(self, piece_move, moved_piece)
-        //         .expect("Castling could not be handled in apply_move");
-
-        // // Move the piece internally and update its entity translation
-        // self.positions.move_piece(piece_move);
-
-        // let captured_piece = if piece_captured {
-        //     Some(piece_moved_to)
-        // } else {
-        //     None
-        // };
-
-        self.positions.apply_move(piece_move);
-
-        // TODO Add this to positions.apply_move
-        // // Update the move history with this move
-        // self.move_history.make_move(
-        //     piece_move,
-        //     captured_piece,
-        //     en_passant_tile,
-        //     castling_rights_before_move,
-        // );
+    pub fn apply_move(&mut self, mut piece_move: PieceMove) -> PieceMoveType {
+        self.positions
+            .apply_move(&mut piece_move, &mut self.move_history);
 
         self.next_player();
 
@@ -308,82 +254,18 @@ impl Board {
 
     /// # Panics
     /// Panics if castling cannot be undone, or if piece couldn't un-promote
-    pub fn undo_move(&mut self) -> Option<PieceMoveType> {
-        // TODO Duplicated Code
-
+    pub fn undo_move(&mut self, history_move: HistoryMove) -> Option<HistoryMove> {
         // Check if this move caused the game to end
         let game_didnt_end = self.positions.has_game_ended().is_none();
 
-        let Some(history_move) = self.move_history.traverse_prev() else {
-            return None;
-        };
-
-        // let (mut piece_move, captured_piece, en_passant_tile, castling_rights) =
-        //     history_move.into();
-
-        // // Set the castling rights
-        // self.castling_rights = castling_rights;
-
-        // // Set the en_passant marker
-        // self.en_passant_on_last_move = en_passant_tile;
-
-        // // Perform the correct move for the move_type
-        // match piece_move.move_type {
-        //     PieceMoveType::Castling => {
-        //         // Perform the castling
-        //         let moved_piece = self.positions.get_piece(piece_move.to);
-
-        //         (piece_move, _) = perform_castling(self, piece_move, moved_piece, true)
-        //             .expect("Castling couldn't be undone");
-        //     }
-        //     PieceMoveType::Promotion(_) => {
-        //         // Get the piece's player as an index
-        //         let player_index = self
-        //             .positions
-        //             .get_piece(piece_move.to)
-        //             .to_player()
-        //             .expect("Player could not be found via piece move for promotion")
-        //             .to_index();
-
-        //         // Get this player's pawn type
-        //         let new_piece_type = Piece::get_player_piece(PLAYERS[player_index], Piece::WPawn);
-
-        //         perform_promotion(self, piece_move.to, new_piece_type);
-        //     }
-        //     _ => {}
-        // }
-
-        // // Move piece before re-creating captured pieces
-        // self.positions.move_piece(piece_move.rev());
-
-        // match piece_move.move_type {
-        //     PieceMoveType::Normal | PieceMoveType::EnPassant => {
-        //         // TODO
-        //         // Create new entities for any captured pieces
-        //         if let Some(captured_piece) = captured_piece {
-        //             // Set the captured piece tile, depending on if this capture was an en passant capture or not
-        //             let captured_piece_tile = if piece_move.move_type == PieceMoveType::EnPassant {
-        //                 TilePos::new(piece_move.to.file, piece_move.from.rank)
-        //             } else {
-        //                 piece_move.to
-        //             };
-
-        //             // Update the board to make it aware of the spawned piece
-        //             self.positions
-        //                 .set_piece(captured_piece_tile, captured_piece);
-        //         }
-        //     }
-        //     _ => {}
-        // }
-
-        let move_type = self.positions.undo_move(history_move);
+        self.positions.undo_move(history_move);
 
         // Only increment the player if the game didn't end on this move
         if game_didnt_end {
             self.next_player();
         }
 
-        Some(move_type)
+        Some(history_move)
     }
 
     #[must_use]

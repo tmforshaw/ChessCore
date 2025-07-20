@@ -43,6 +43,10 @@ impl PieceMove {
         }
     }
 
+    pub const fn give_show(&mut self, show: bool) {
+        self.show = show;
+    }
+
     #[must_use]
     pub const fn with_castling(&self) -> Self {
         Self {
@@ -51,6 +55,10 @@ impl PieceMove {
             move_type: PieceMoveType::Castling,
             show: self.show,
         }
+    }
+
+    pub const fn give_castling(&mut self) {
+        self.move_type = PieceMoveType::Castling;
     }
 
     #[must_use]
@@ -63,6 +71,10 @@ impl PieceMove {
         }
     }
 
+    pub const fn give_en_passant_capture(&mut self) {
+        self.move_type = PieceMoveType::EnPassant;
+    }
+
     #[must_use]
     pub const fn with_promotion(&self, promoted_to: Piece) -> Self {
         Self {
@@ -71,6 +83,10 @@ impl PieceMove {
             move_type: PieceMoveType::Promotion(promoted_to),
             show: self.show,
         }
+    }
+
+    pub const fn give_promotion(&mut self, promoted_to: Piece) {
+        self.move_type = PieceMoveType::Promotion(promoted_to);
     }
 
     /// # Errors
