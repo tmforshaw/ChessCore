@@ -187,7 +187,9 @@ pub fn handle_en_passant(
     mut piece_moved_to: Piece,
 ) -> Option<(Option<TilePos>, PieceMove, bool, Piece)> {
     // Check if piece moved to the en passant tile
-    if let Some(en_passant) = board.en_passant_on_last_move {
+    if board.positions.en_passant_tile != 0 {
+        let en_passant = TilePos::from_index(board.positions.en_passant_tile.trailing_zeros());
+
         // Moved to en passant tile and is the correct player's pawn
         if en_passant == piece_move.to
             && moved_piece == Piece::get_player_piece(board.get_player(), Piece::WPawn)
@@ -211,8 +213,8 @@ pub fn handle_en_passant(
     }
 
     // Clear the en_passant marker, caching it for use in the history_move.make_move() function
-    let en_passant_tile = board.en_passant_on_last_move;
-    board.en_passant_on_last_move = None;
+    let en_passant_tile = board.positions.en_passant_tile;
+    board.positions.en_passant_tile = 0;
 
     // Check if this move allows en passant on the next move
     if Board::double_pawn_move_check(moved_piece, piece_move.from)
@@ -229,10 +231,16 @@ pub fn handle_en_passant(
             .ok()?,
         );
 
-        board.en_passant_on_last_move = Some(en_passant_tile);
+        board.positions.en_passant_tile = 1 << en_passant_tile.to_index();
     }
 
-    Some((en_passant_tile, piece_move, piece_captured, piece_moved_to))
+    let en_passant_maybe = if en_passant_tile == 0 {
+        None
+    } else {
+        Some(TilePos::from_index(en_passant_tile.trailing_zeros()))
+    };
+
+    Some((en_passant_maybe, piece_move, piece_captured, piece_moved_to))
 }
 
 #[allow(clippy::type_complexity)]
@@ -242,27 +250,27 @@ pub fn handle_castling(
     moved_piece: Piece,
 ) -> Option<([(bool, bool); COLOUR_AMT], PieceMove, Option<bool>)> {
     // Remember the castling rights before this move
-    let castling_rights_before_move = board.castling_rights;
+    let castling_rights_before_move = board.positions.castling_rights;
 
     // Handle castling rights
     {
         let player_index = board.get_player().to_index();
 
         // Only update if the castling rights aren't already false
-        if board.castling_rights[player_index] != (false, false) {
+        if board.positions.castling_rights[player_index] != (false, false) {
             // King was moved
             if moved_piece == board.positions.get_player_king(board.get_player()) {
-                board.castling_rights[player_index] = (false, false);
+                board.positions.castling_rights[player_index] = (false, false);
             }
             // Rook was moved
             else if moved_piece == Piece::get_player_piece(board.get_player(), Piece::WRook) {
                 // Kingside
                 if piece_move.from.file == BOARD_SIZE - 1 {
-                    board.castling_rights[player_index].0 = false;
+                    board.positions.castling_rights[player_index].0 = false;
                 }
                 // Queenside
                 else if piece_move.from.file == 0 {
-                    board.castling_rights[player_index].1 = false;
+                    board.positions.castling_rights[player_index].1 = false;
                 }
             }
         }

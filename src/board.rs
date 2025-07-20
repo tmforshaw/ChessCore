@@ -4,10 +4,7 @@ use crate::{
     bitboards::BitBoards,
     move_history::PieceMoveHistory,
     piece::{COLOUR_AMT, Piece},
-    piece_move::{
-        PieceMove, PieceMoveType, apply_promotion, handle_castling, handle_en_passant,
-        perform_castling, perform_promotion,
-    },
+    piece_move::PieceMove,
 };
 
 pub const BOARD_SIZE: u32 = 8;
@@ -110,8 +107,8 @@ impl From<TilePos> for (u32, u32) {
 pub struct Board {
     pub positions: BitBoards,
     pub player: Player,
-    pub castling_rights: [(bool, bool); COLOUR_AMT],
-    pub en_passant_on_last_move: Option<TilePos>,
+    // pub castling_rights: [(bool, bool); COLOUR_AMT],
+    // pub en_passant_on_last_move: Option<TilePos>,
     pub half_move_counter: usize,
     pub full_move_counter: usize,
     pub move_history: PieceMoveHistory,
@@ -155,8 +152,8 @@ impl Board {
         let mut board = Self {
             positions: BitBoards::default(),
             player: Player::default(),
-            castling_rights: [(false, false); COLOUR_AMT],
-            en_passant_on_last_move: None,
+            // castling_rights: [(false, false); COLOUR_AMT],
+            // en_passant_on_last_move: None,
             half_move_counter: 0,
             full_move_counter: 1,
             move_history: PieceMoveHistory::default(),
@@ -199,11 +196,11 @@ impl Board {
                 },
                 // Read the castling rights from FEN
                 2 => match chr {
-                    'K' => board.castling_rights[Player::White as usize].0 = true,
-                    'Q' => board.castling_rights[Player::White as usize].1 = true,
-                    'k' => board.castling_rights[Player::Black as usize].0 = true,
-                    'q' => board.castling_rights[Player::Black as usize].1 = true,
-                    '-' => board.castling_rights = [(false, false); COLOUR_AMT],
+                    'K' => board.positions.castling_rights[Player::White as usize].0 = true,
+                    'Q' => board.positions.castling_rights[Player::White as usize].1 = true,
+                    'k' => board.positions.castling_rights[Player::Black as usize].0 = true,
+                    'q' => board.positions.castling_rights[Player::Black as usize].1 = true,
+                    '-' => board.positions.castling_rights = [(false, false); COLOUR_AMT],
                     ' ' => section_index += 1,
                     _ => {
                         return Err(format!(
@@ -213,7 +210,7 @@ impl Board {
                 },
                 // Reached the en passant part of FEN
                 3 => match chr {
-                    '-' => board.en_passant_on_last_move = None,
+                    '-' => board.positions.en_passant_tile = 0,
                     ' ' => section_index += 1,
                     c => {
                         if !c.is_ascii_digit() {
@@ -222,10 +219,12 @@ impl Board {
 
                             match (algebraic_en_passant[0], algebraic_en_passant[1]) {
                                 ('a'..='h', '0'..='8') => {
-                                    board.en_passant_on_last_move = Some(TilePos::new(
-                                        u32::from(algebraic_en_passant[0] as u8 - b'a'),
-                                        u32::from(algebraic_en_passant[1] as u8 - b'1'),
-                                    ));
+                                    board.positions.en_passant_tile = 1
+                                        << TilePos::new(
+                                            u32::from(algebraic_en_passant[0] as u8 - b'a'),
+                                            u32::from(algebraic_en_passant[1] as u8 - b'1'),
+                                        )
+                                        .to_index();
                                 }
                                 _ => {
                                     return Err(format!(
@@ -249,55 +248,57 @@ impl Board {
     pub fn apply_move(&mut self, mut piece_move: PieceMove) {
         // TODO Duplicated Code
 
-        let mut piece_captured = false;
+        // let mut piece_captured = false;
 
-        // Capture any pieces that should be captured
-        let mut piece_moved_to = if self.positions.get_piece(piece_move.to) == Piece::None {
-            Piece::None
-        } else {
-            piece_captured = true;
+        // // Capture any pieces that should be captured
+        // let mut piece_moved_to = if self.positions.get_piece(piece_move.to) == Piece::None {
+        //     Piece::None
+        // } else {
+        //     piece_captured = true;
 
-            self.positions.get_piece(piece_move.to)
-        };
+        //     self.positions.get_piece(piece_move.to)
+        // };
 
-        let moved_piece = self.positions.get_piece(piece_move.from);
+        // let moved_piece = self.positions.get_piece(piece_move.from);
 
-        // Handle promotion
-        piece_move = apply_promotion(self, moved_piece, piece_move);
+        // // Handle promotion
+        // piece_move = apply_promotion(self, moved_piece, piece_move);
 
-        // Handle en passant, if this move is en passant, or if this move allows en passant on the next move
-        let en_passant_tile;
-        (en_passant_tile, piece_move, piece_captured, piece_moved_to) = handle_en_passant(
-            self,
-            piece_move,
-            moved_piece,
-            piece_captured,
-            piece_moved_to,
-        )
-        .expect("Could not handle en passant in apply_move");
+        // // Handle en passant, if this move is en passant, or if this move allows en passant on the next move
+        // let en_passant_tile;
+        // (en_passant_tile, piece_move, piece_captured, piece_moved_to) = handle_en_passant(
+        //     self,
+        //     piece_move,
+        //     moved_piece,
+        //     piece_captured,
+        //     piece_moved_to,
+        // )
+        // .expect("Could not handle en passant in apply_move");
 
-        // Handle Castling
-        let castling_rights_before_move;
-        (castling_rights_before_move, piece_move, _) =
-            handle_castling(self, piece_move, moved_piece)
-                .expect("Castling could not be handled in apply_move");
+        // // Handle Castling
+        // let castling_rights_before_move;
+        // (castling_rights_before_move, piece_move, _) =
+        //     handle_castling(self, piece_move, moved_piece)
+        //         .expect("Castling could not be handled in apply_move");
 
-        // Move the piece internally and update its entity translation
-        self.positions.move_piece(piece_move);
+        // // Move the piece internally and update its entity translation
+        // self.positions.move_piece(piece_move);
 
-        let captured_piece = if piece_captured {
-            Some(piece_moved_to)
-        } else {
-            None
-        };
+        // let captured_piece = if piece_captured {
+        //     Some(piece_moved_to)
+        // } else {
+        //     None
+        // };
 
-        // Update the move history with this move
-        self.move_history.make_move(
-            piece_move,
-            captured_piece,
-            en_passant_tile,
-            castling_rights_before_move,
-        );
+        self.positions.apply_move(piece_move);
+
+        // // Update the move history with this move
+        // self.move_history.make_move(
+        //     piece_move,
+        //     captured_piece,
+        //     en_passant_tile,
+        //     castling_rights_before_move,
+        // );
 
         self.next_player();
     }
@@ -314,63 +315,65 @@ impl Board {
             return;
         };
 
-        let (mut piece_move, captured_piece, en_passant_tile, castling_rights) =
-            history_move.into();
+        // let (mut piece_move, captured_piece, en_passant_tile, castling_rights) =
+        //     history_move.into();
 
-        // Set the castling rights
-        self.castling_rights = castling_rights;
+        // // Set the castling rights
+        // self.castling_rights = castling_rights;
 
-        // Set the en_passant marker
-        self.en_passant_on_last_move = en_passant_tile;
+        // // Set the en_passant marker
+        // self.en_passant_on_last_move = en_passant_tile;
 
-        // Perform the correct move for the move_type
-        match piece_move.move_type {
-            PieceMoveType::Castling => {
-                // Perform the castling
-                let moved_piece = self.positions.get_piece(piece_move.to);
+        // // Perform the correct move for the move_type
+        // match piece_move.move_type {
+        //     PieceMoveType::Castling => {
+        //         // Perform the castling
+        //         let moved_piece = self.positions.get_piece(piece_move.to);
 
-                (piece_move, _) = perform_castling(self, piece_move, moved_piece, true)
-                    .expect("Castling couldn't be undone");
-            }
-            PieceMoveType::Promotion(_) => {
-                // Get the piece's player as an index
-                let player_index = self
-                    .positions
-                    .get_piece(piece_move.to)
-                    .to_player()
-                    .expect("Player could not be found via piece move for promotion")
-                    .to_index();
+        //         (piece_move, _) = perform_castling(self, piece_move, moved_piece, true)
+        //             .expect("Castling couldn't be undone");
+        //     }
+        //     PieceMoveType::Promotion(_) => {
+        //         // Get the piece's player as an index
+        //         let player_index = self
+        //             .positions
+        //             .get_piece(piece_move.to)
+        //             .to_player()
+        //             .expect("Player could not be found via piece move for promotion")
+        //             .to_index();
 
-                // Get this player's pawn type
-                let new_piece_type = Piece::get_player_piece(PLAYERS[player_index], Piece::WPawn);
+        //         // Get this player's pawn type
+        //         let new_piece_type = Piece::get_player_piece(PLAYERS[player_index], Piece::WPawn);
 
-                perform_promotion(self, piece_move.to, new_piece_type);
-            }
-            _ => {}
-        }
+        //         perform_promotion(self, piece_move.to, new_piece_type);
+        //     }
+        //     _ => {}
+        // }
 
-        // Move piece before re-creating captured pieces
-        self.positions.move_piece(piece_move.rev());
+        // // Move piece before re-creating captured pieces
+        // self.positions.move_piece(piece_move.rev());
 
-        match piece_move.move_type {
-            PieceMoveType::Normal | PieceMoveType::EnPassant => {
-                // TODO
-                // Create new entities for any captured pieces
-                if let Some(captured_piece) = captured_piece {
-                    // Set the captured piece tile, depending on if this capture was an en passant capture or not
-                    let captured_piece_tile = if piece_move.move_type == PieceMoveType::EnPassant {
-                        TilePos::new(piece_move.to.file, piece_move.from.rank)
-                    } else {
-                        piece_move.to
-                    };
+        // match piece_move.move_type {
+        //     PieceMoveType::Normal | PieceMoveType::EnPassant => {
+        //         // TODO
+        //         // Create new entities for any captured pieces
+        //         if let Some(captured_piece) = captured_piece {
+        //             // Set the captured piece tile, depending on if this capture was an en passant capture or not
+        //             let captured_piece_tile = if piece_move.move_type == PieceMoveType::EnPassant {
+        //                 TilePos::new(piece_move.to.file, piece_move.from.rank)
+        //             } else {
+        //                 piece_move.to
+        //             };
 
-                    // Update the board to make it aware of the spawned piece
-                    self.positions
-                        .set_piece(captured_piece_tile, captured_piece);
-                }
-            }
-            _ => {}
-        }
+        //             // Update the board to make it aware of the spawned piece
+        //             self.positions
+        //                 .set_piece(captured_piece_tile, captured_piece);
+        //         }
+        //     }
+        //     _ => {}
+        // }
+
+        self.positions.undo_move(history_move);
 
         // Only increment the player if the game didn't end on this move
         if game_didnt_end {

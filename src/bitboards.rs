@@ -3,6 +3,7 @@ use std::fmt;
 use crate::{
     bitboard::BitBoard,
     board::{BOARD_SIZE, PLAYERS, Player, TilePos},
+    move_history::HistoryMove,
     piece::{COLOUR_AMT, PIECE_AMT, PIECES, Piece},
     piece_move::PieceMove,
 };
@@ -11,6 +12,7 @@ use crate::{
 pub struct BitBoards {
     pub boards: [BitBoard; PIECE_AMT * COLOUR_AMT],
     pub en_passant_tile: u64,
+    pub castling_rights: [(bool, bool); COLOUR_AMT],
 }
 
 impl BitBoards {
@@ -78,6 +80,157 @@ impl BitBoards {
 
         occupied
     }
+
+    // Apply and Undo Moves -------------------------------------------------------------------------------------------------------------------------
+
+    /// # Panics
+    /// Panics if player cannot be found from ``piece_move.from``
+    pub fn apply_move(&mut self, piece_move: PieceMove) {
+        let from_idx = piece_move.from.to_index();
+        let to_idx = piece_move.to.to_index();
+
+        let piece = self.get_piece(piece_move.from);
+        let player = piece
+            .to_player()
+            .expect("Could not get Player from piece at piece_move.from"); // TODO
+
+        // Clear the from position
+        self[piece].set_bit(from_idx, false);
+
+        // Handle captures
+        let captured_piece = self.get_piece(piece_move.to);
+        if captured_piece != Piece::None {
+            self[captured_piece].set_bit(to_idx, false);
+        }
+
+        match piece_move.move_type {
+            crate::piece_move::PieceMoveType::Normal => {
+                // Set the moved to position to this piece
+                self[piece].set_bit(to_idx, true);
+            }
+            crate::piece_move::PieceMoveType::EnPassant => {
+                let captured_pos = TilePos::new(piece_move.to.file, piece_move.from.rank);
+                let captured_idx = captured_pos.to_index();
+                let captured_pawn = Piece::get_player_piece(player.next_player(), Piece::WPawn);
+
+                // En passant capture the opposing pawn, Set the moved to position to this piece
+                self[captured_pawn].set_bit(captured_idx, false);
+                self[piece].set_bit(to_idx, true);
+            }
+            crate::piece_move::PieceMoveType::Castling => {
+                // Get rook position depending on if this was kingside or queenside castle
+                let (rook_from, rook_to) = if piece_move.to.file > piece_move.from.file {
+                    (
+                        TilePos::new(7, piece_move.from.rank),
+                        TilePos::new(5, piece_move.from.rank),
+                    )
+                } else {
+                    (
+                        TilePos::new(0, piece_move.from.rank),
+                        TilePos::new(3, piece_move.from.rank),
+                    )
+                };
+
+                // Clear the rook from position and set its to position
+                let rook = Piece::get_player_piece(player, Piece::WRook);
+                self[rook].set_bit(rook_from.to_index(), false);
+                self[rook].set_bit(rook_to.to_index(), true);
+
+                // Set the moved to position to this piece
+                self[piece].set_bit(to_idx, true);
+            }
+            crate::piece_move::PieceMoveType::Promotion(promoted_to) => {
+                // let promoted_to = Piece::get_player_piece(player, promoted_to);
+
+                // Set the moved to position to this piece
+                self[promoted_to].set_bit(to_idx, true);
+            }
+        }
+
+        // Update en passant square if needed
+        if piece == Piece::get_player_piece(player, Piece::WPawn)
+            && (piece_move.from.rank as i8 - piece_move.to.rank as i8).abs() == 2
+        {
+            self.en_passant_tile = 1
+                << TilePos::new(
+                    piece_move.from.file,
+                    u32::midpoint(piece_move.from.rank, piece_move.to.rank),
+                )
+                .to_index();
+        } else {
+            self.en_passant_tile = 0;
+        }
+    }
+
+    /// # Panics
+    /// Panics if player cannot be found from ``piece_move.from``
+    // TODO take reference of history
+    pub fn undo_move(&mut self, history: HistoryMove) {
+        let (piece_move, captured_piece, en_passant_tile, castling_rights) = history.into();
+
+        let from_idx = piece_move.from.to_index();
+        let to_idx = piece_move.to.to_index();
+
+        let piece = self.get_piece(piece_move.from);
+        let player = piece
+            .to_player()
+            .expect("Could not get Player from piece at piece_move.from"); // TODO
+
+        // Clear the to position
+        self[piece].set_bit(to_idx, false);
+
+        match piece_move.move_type {
+            crate::piece_move::PieceMoveType::Normal => self[piece].set_bit(from_idx, true),
+            crate::piece_move::PieceMoveType::EnPassant => {
+                self[piece].set_bit(from_idx, true);
+
+                let captured_pos = TilePos::new(piece_move.to.file, piece_move.from.rank);
+                let captured_idx = captured_pos.to_index();
+                let captured_pawn = Piece::get_player_piece(player.next_player(), Piece::WPawn);
+
+                self[captured_pawn].set_bit(captured_idx, true);
+            }
+            crate::piece_move::PieceMoveType::Castling => {
+                self[piece].set_bit(from_idx, true);
+
+                // Get rook position depending on if this was kingside or queenside castle
+                let (rook_from, rook_to) = if piece_move.to.file > piece_move.from.file {
+                    (
+                        TilePos::new(7, piece_move.from.rank),
+                        TilePos::new(5, piece_move.from.rank),
+                    )
+                } else {
+                    (
+                        TilePos::new(0, piece_move.from.rank),
+                        TilePos::new(3, piece_move.from.rank),
+                    )
+                };
+
+                // Clear the rook from position and set its to position
+                let rook = Piece::get_player_piece(player, Piece::WRook);
+                self[rook].set_bit(rook_to.to_index(), false);
+                self[rook].set_bit(rook_from.to_index(), true);
+            }
+            crate::piece_move::PieceMoveType::Promotion(_) => {
+                let pawn = Piece::get_player_piece(player, Piece::WPawn);
+                self[pawn].set_bit(from_idx, true);
+            }
+        }
+
+        if let Some(captured) = captured_piece {
+            self[captured].set_bit(to_idx, true);
+        }
+
+        if let Some(en_passant_tile) = en_passant_tile {
+            self.en_passant_tile = 1 << en_passant_tile.to_index();
+        }
+
+        self.castling_rights = castling_rights;
+    }
+
+    // END  ---- Apply and Undo Moves ----------------------------------------------------------------------------------------------------------------
+
+    // Pseudolegal Move Generation -------------------------------------------------------------------------------------------------------------------
 
     /// # Panics
     /// Panics if the player cannot be found from the piece at from
@@ -291,6 +444,8 @@ impl BitBoards {
             }
         })(self, from)
     }
+
+    // END ---- Pseudolegal Move Generation ----------------------------------------------------------------------------------------------------------
 
     #[must_use]
     pub fn get_all_player_pieces(&self, player: Player) -> Vec<(Piece, TilePos)> {
