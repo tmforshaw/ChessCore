@@ -3,7 +3,7 @@ use std::fmt;
 use crate::{
     bitboards::BitBoards,
     move_history::PieceMoveHistory,
-    piece::{COLOUR_AMT, PIECES, Piece},
+    piece::{COLOUR_AMT, Piece},
     piece_move::{
         PieceMove, PieceMoveType, apply_promotion, handle_castling, handle_en_passant,
         perform_castling, perform_promotion,
@@ -173,7 +173,7 @@ impl Board {
                     _ => {
                         if let Some(piece) = Piece::from_algebraic(chr) {
                             let tile_pos = TilePos::new(file, BOARD_SIZE - 1 - rank); // Count from the bottom (need to flip rank)
-                            board.set_piece(tile_pos, piece);
+                            board.positions.set_piece(tile_pos, piece);
                             board.positions[piece].set_bit_at(tile_pos, true);
 
                             file += 1;
@@ -250,15 +250,15 @@ impl Board {
         let mut piece_captured = false;
 
         // Capture any pieces that should be captured
-        let mut piece_moved_to = if self.get_piece(piece_move.to) == Piece::None {
+        let mut piece_moved_to = if self.positions.get_piece(piece_move.to) == Piece::None {
             Piece::None
         } else {
             piece_captured = true;
 
-            self.get_piece(piece_move.to)
+            self.positions.get_piece(piece_move.to)
         };
 
-        let moved_piece = self.get_piece(piece_move.from);
+        let moved_piece = self.positions.get_piece(piece_move.from);
 
         // Handle promotion
         piece_move = apply_promotion(self, moved_piece, piece_move);
@@ -281,7 +281,7 @@ impl Board {
                 .expect("Castling could not be handled in apply_move");
 
         // Move the piece internally and update its entity translation
-        self.move_piece(piece_move);
+        self.positions.move_piece(piece_move);
 
         let captured_piece = if piece_captured {
             Some(piece_moved_to)
@@ -325,7 +325,7 @@ impl Board {
         match piece_move.move_type {
             PieceMoveType::Castling => {
                 // Perform the castling
-                let moved_piece = self.get_piece(piece_move.to);
+                let moved_piece = self.positions.get_piece(piece_move.to);
 
                 (piece_move, _) = perform_castling(self, piece_move, moved_piece, true)
                     .expect("Castling couldn't be undone");
@@ -333,6 +333,7 @@ impl Board {
             PieceMoveType::Promotion(_) => {
                 // Get the piece's player as an index
                 let player_index = self
+                    .positions
                     .get_piece(piece_move.to)
                     .to_player()
                     .expect("Player could not be found via piece move for promotion")
@@ -347,7 +348,7 @@ impl Board {
         }
 
         // Move piece before re-creating captured pieces
-        self.move_piece(piece_move.rev());
+        self.positions.move_piece(piece_move.rev());
 
         match piece_move.move_type {
             PieceMoveType::Normal | PieceMoveType::EnPassant => {
@@ -362,7 +363,8 @@ impl Board {
                     };
 
                     // Update the board to make it aware of the spawned piece
-                    self.set_piece(captured_piece_tile, captured_piece);
+                    self.positions
+                        .set_piece(captured_piece_tile, captured_piece);
                 }
             }
             _ => {}
@@ -371,29 +373,6 @@ impl Board {
         // Only increment the player if the game didn't end on this move
         if game_didnt_end {
             self.next_player();
-        }
-    }
-
-    pub fn move_piece(&mut self, piece_move: PieceMove) {
-        let moved_piece = self.get_piece(piece_move.from);
-        self.set_piece(piece_move.from, Piece::None);
-        self.set_piece(piece_move.to, moved_piece);
-    }
-
-    // TODO Remove this
-    #[must_use]
-    pub fn get_piece(&self, tile_pos: TilePos) -> Piece {
-        self.positions.get_piece(tile_pos)
-    }
-
-    pub fn set_piece(&mut self, tile_pos: TilePos, piece: Piece) {
-        // Clear all the other bitboards at this position, except this piece's position bitboard
-        for &piece_i in PIECES {
-            if piece_i == piece {
-                self.positions[piece_i].set_bit_at(tile_pos, true);
-            } else {
-                self.positions[piece_i].set_bit_at(tile_pos, false);
-            }
         }
     }
 
@@ -473,7 +452,7 @@ impl Board {
         };
 
         for tile in tiles_between {
-            if self.get_piece(tile) != Piece::None {
+            if self.positions.get_piece(tile) != Piece::None {
                 return false;
             }
         }

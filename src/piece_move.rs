@@ -172,7 +172,7 @@ pub fn apply_promotion(
 
 pub fn perform_promotion(board: &mut Board, from: TilePos, new_piece_type: Piece) {
     // Change the type of the piece in the internal board
-    board.set_piece(from, new_piece_type);
+    board.positions.set_piece(from, new_piece_type);
 }
 
 // Returns the en_passant tile for this move
@@ -197,14 +197,14 @@ pub fn handle_en_passant(
                 piece_move.to.file,
                 piece_move.from.rank, // The rank which the piece moved from is the same as the piece it will capture
             );
-            let captured_piece = board.get_piece(captured_piece_pos);
+            let captured_piece = board.positions.get_piece(captured_piece_pos);
 
             // Mark that there was a piece captured via en passant
             piece_captured = true;
             piece_move = piece_move.with_en_passant_capture();
 
             // Delete the piece at the captured tile
-            board.set_piece(captured_piece_pos, Piece::None);
+            board.positions.set_piece(captured_piece_pos, Piece::None);
 
             piece_moved_to = captured_piece;
         }
@@ -322,5 +322,7 @@ fn move_rook_for_castle(board: &mut Board, file: u32, new_file: u32, from_rank: 
     }
 
     // Move the rook internally
-    board.move_piece(PieceMove::new(rook_pos, new_rook_pos));
+    board
+        .positions
+        .move_piece(PieceMove::new(rook_pos, new_rook_pos));
 }
