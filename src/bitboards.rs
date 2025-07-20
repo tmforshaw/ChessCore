@@ -1,0 +1,496 @@
+use std::fmt;
+
+use crate::{
+    bitboard::BitBoard,
+    board::{BOARD_SIZE, Player, TilePos},
+    piece::{COLOUR_AMT, PIECE_AMT, PIECES, Piece},
+    piece_move::PieceMove,
+};
+
+#[derive(Default, Clone, Eq, PartialEq)]
+pub struct BitBoards {
+    pub boards: [BitBoard; PIECE_AMT * COLOUR_AMT],
+    pub en_passant_tile: u64,
+}
+
+impl BitBoards {
+    pub fn get_rank_mask(rank: u32) -> BitBoard {
+        (0xFF << (rank * BOARD_SIZE)).into()
+    }
+
+    pub fn get_file_mask(file: u32) -> BitBoard {
+        (0x0101_0101_0101_0101 << file).into()
+    }
+
+    pub fn get_piece(&self, tile_pos: TilePos) -> Piece {
+        for &piece in PIECES {
+            if self[piece].get_bit_at(tile_pos) {
+                return piece;
+            }
+        }
+
+        Piece::None
+    }
+
+    pub fn set_piece(&mut self, tile_pos: TilePos, piece: Piece) {
+        for &piece_from_index in PIECES {
+            if piece_from_index == piece {
+                self[piece].set_bit_at(tile_pos, true);
+            } else {
+                self[piece_from_index].set_bit_at(tile_pos, false);
+            }
+        }
+    }
+
+    pub fn move_piece(&mut self, piece_move: PieceMove) {
+        let piece = self.get_piece(piece_move.from);
+
+        // Clear the original tile
+        self[piece].set_bit_at(piece_move.from, false);
+
+        // Clear the other boards at this space, and set the tile to this piece
+        self.set_piece(piece_move.to, piece);
+    }
+
+    pub fn get_player_occupied(&self, player: Player) -> BitBoard {
+        let mut occupied = 0.into();
+        for (i, board) in self.boards.iter().enumerate() {
+            // If the board is a piece for this player
+            if PIECES[i].is_player(player) {
+                occupied |= board.bits();
+            }
+        }
+
+        occupied
+    }
+
+    pub fn get_occupied(&self) -> BitBoard {
+        let mut occupied = 0.into();
+        for board in self.boards {
+            occupied |= board.bits();
+        }
+
+        occupied
+    }
+
+    pub fn get_pawn_moves(&self, from: TilePos) -> BitBoard {
+        let player = self.get_piece(from).to_player().unwrap(); // TODO Unwrap used
+
+        #[allow(clippy::too_many_arguments)]
+        fn get_pawn_moves_for(
+            pawns: u64,
+            opposing_pieces: u64,
+            empty: u64,
+            en_passant_tile: u64,
+            forward: i8,
+            start_rank: u32,
+            left_shift: i8,
+            right_shift: i8,
+            left_file_mask: u64,
+            right_file_mask: u64,
+        ) -> BitBoard {
+            // Pushing
+            let single_push = shift(pawns, forward) & empty;
+            let double_push = shift(
+                shift(pawns & BitBoards::get_rank_mask(start_rank).bits(), forward) & empty,
+                forward,
+            ) & empty;
+
+            // Capturing
+            let left_capture = shift(pawns, left_shift) & opposing_pieces & !right_file_mask;
+            let right_capture = shift(pawns, right_shift) & opposing_pieces & !left_file_mask;
+
+            // En Passant Capturing
+            let en_passant_capture_left =
+                shift(pawns, left_shift) & en_passant_tile & !right_file_mask;
+            let en_passant_capture_right =
+                shift(pawns, right_shift) & en_passant_tile & !left_file_mask;
+
+            (single_push
+                | double_push
+                | left_capture
+                | right_capture
+                | en_passant_capture_left
+                | en_passant_capture_right)
+                .into()
+        }
+        // TODO promotions
+
+        let pawn = 1 << from.to_index();
+
+        match player {
+            Player::White => get_pawn_moves_for(
+                pawn,
+                self.get_player_occupied(Player::Black).bits(),
+                !self.get_occupied().bits(),
+                self.en_passant_tile,
+                8,
+                1,
+                7,
+                9,
+                Self::get_file_mask(7).bits(),
+                Self::get_file_mask(0).bits(),
+            ),
+            Player::Black => get_pawn_moves_for(
+                pawn,
+                self.get_player_occupied(Player::White).bits(),
+                !self.get_occupied().bits(),
+                self.en_passant_tile,
+                -8,
+                6,
+                -9,
+                -7,
+                Self::get_file_mask(7).bits(),
+                Self::get_file_mask(0).bits(),
+            ),
+        }
+    }
+
+    pub fn get_knight_moves(&self, from: TilePos) -> BitBoard {
+        let file_a: u64 = BitBoards::get_file_mask(0).bits();
+        let file_b: u64 = BitBoards::get_file_mask(1).bits();
+        let file_h: u64 = BitBoards::get_file_mask(6).bits();
+        let file_g: u64 = BitBoards::get_file_mask(7).bits();
+
+        let player = self.get_piece(from).to_player().unwrap(); // TODO Unwrap used
+
+        let knight: BitBoard = (1 << from.to_index()).into();
+
+        let mut moves: BitBoard = 0.into();
+
+        // 2 up, 1 right (<< 17), no wrap if not on file H
+        moves |= (knight << 17) & !file_a;
+
+        // 2 up, 1 left (<< 15), no wrap if not on file A
+        moves |= (knight << 15) & !file_h;
+
+        // 1 up, 2 right (<< 10), no wrap if not on files G or H
+        moves |= (knight << 10) & !(file_b | file_a);
+
+        // 1 up, 2 left (<< 6), no wrap if not on files A or B
+        moves |= (knight << 6) & !(file_h | file_g);
+
+        // 2 down, 1 left (>> 17), no wrap if not on file A
+        moves |= (knight >> 17) & !file_h;
+
+        // 2 down, 1 right (>> 15), no wrap if not on file H
+        moves |= (knight >> 15) & !file_a;
+
+        // 1 down, 2 left (>> 10), no wrap if not on files A or B
+        moves |= (knight >> 10) & !(file_h | file_g);
+
+        // 1 down, 2 right (>> 6), no wrap if not on files G or H
+        moves |= (knight >> 6) & !(file_b | file_a);
+
+        // Remove squares occupied by own pieces
+        moves & !self.get_player_occupied(player)
+    }
+
+    pub fn get_king_moves(&self, from: TilePos) -> BitBoard {
+        let file_a: u64 = BitBoards::get_file_mask(0).bits();
+        let file_h: u64 = BitBoards::get_file_mask(7).bits();
+
+        let player = self.get_piece(from).to_player().unwrap(); // TODO Unwrap used
+        let king: BitBoard = (1 << from.to_index()).into();
+
+        let mut moves: BitBoard = 0.into();
+
+        // Up
+        moves |= king << 8;
+        // Down
+        moves |= king >> 8;
+        // Left
+        moves |= (king >> 1) & !file_h;
+        // Right
+        moves |= (king << 1) & !file_a;
+        // Up-Left
+        moves |= (king << 7) & !file_h;
+        // Up-Right
+        moves |= (king << 9) & !file_a;
+        // Down-Left
+        moves |= (king >> 9) & !file_h;
+        // Down-Right
+        moves |= (king >> 7) & !file_a;
+
+        // Remove own pieces squares
+        moves & !self.get_player_occupied(player)
+    }
+
+    fn get_orthogonal_moves(&self, from: TilePos) -> BitBoard {
+        let occupied = self.get_occupied().bits();
+
+        let file_a: u64 = BitBoards::get_file_mask(0).bits();
+        let file_h: u64 = BitBoards::get_file_mask(7).bits();
+
+        let mut moves: BitBoard = 0.into();
+
+        let mut temp: u64 = 1 << from.to_index();
+        while temp != 0 {
+            let square = temp.trailing_zeros();
+            let from_bit = 1u64 << square;
+
+            moves |= sliding_moves_in_direction(from_bit, occupied, 8, 0); // North
+            moves |= sliding_moves_in_direction(from_bit, occupied, -8, 0); // South
+            moves |= sliding_moves_in_direction(from_bit, occupied, 1, file_a); // East
+            moves |= sliding_moves_in_direction(from_bit, occupied, -1, file_h); // West
+
+            temp &= temp - 1; // Pop the LSB
+        }
+
+        let player = self.get_piece(from).to_player().unwrap();
+
+        moves & !self.get_player_occupied(player)
+    }
+
+    pub fn get_rook_moves(&self, from: TilePos) -> BitBoard {
+        self.get_orthogonal_moves(from)
+    }
+
+    fn get_diagonal_moves(&self, from: TilePos) -> BitBoard {
+        let occupied = self.get_occupied().bits();
+
+        let file_a: u64 = BitBoards::get_file_mask(0).bits();
+        let file_h: u64 = BitBoards::get_file_mask(7).bits();
+
+        let mut moves: BitBoard = 0.into();
+
+        let mut temp: u64 = 1 << from.to_index();
+        while temp != 0 {
+            let square = temp.trailing_zeros();
+            let from_bit = 1u64 << square;
+
+            moves |= sliding_moves_in_direction(from_bit, occupied, 9, file_a); // NE
+            moves |= sliding_moves_in_direction(from_bit, occupied, 7, file_h); // NW
+            moves |= sliding_moves_in_direction(from_bit, occupied, -7, file_a); // SE
+            moves |= sliding_moves_in_direction(from_bit, occupied, -9, file_h); // SW
+
+            temp &= temp - 1;
+        }
+
+        let player = self.get_piece(from).to_player().unwrap();
+
+        moves & !self.get_player_occupied(player)
+    }
+
+    pub fn get_bishop_moves(&self, from: TilePos) -> BitBoard {
+        self.get_diagonal_moves(from)
+    }
+
+    pub fn get_queen_moves(&self, from: TilePos) -> BitBoard {
+        self.get_orthogonal_moves(from) | self.get_diagonal_moves(from)
+    }
+
+    #[must_use]
+    pub fn get_pseudolegal_moves(&self, from: TilePos) -> BitBoard {
+        (match self.get_piece(from) {
+            Piece::BPawn | Piece::WPawn => BitBoards::get_pawn_moves,
+            Piece::BKnight | Piece::WKnight => BitBoards::get_knight_moves,
+            Piece::BKing | Piece::WKing => BitBoards::get_king_moves,
+            Piece::BRook | Piece::WRook => BitBoards::get_rook_moves,
+            Piece::BBishop | Piece::WBishop => BitBoards::get_bishop_moves,
+            Piece::BQueen | Piece::WQueen => BitBoards::get_queen_moves,
+            Piece::None => {
+                panic!("Tried to get pseudolegal moves of Piece::None");
+            }
+        })(self, from)
+    }
+
+    #[must_use]
+    pub fn get_all_player_pieces(&self, player: Player) -> Vec<(Piece, TilePos)> {
+        self.get_player_occupied(player)
+            .to_tile_positions()
+            .iter()
+            .filter_map(|&pos| {
+                let piece = self.get_piece(pos);
+
+                if piece.to_player() == Some(player) {
+                    Some((piece, pos))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn get_attacked_tiles(&self, player: Player) -> BitBoard {
+        let mut attacked = 0;
+
+        for (i, &board) in self.boards.iter().enumerate() {
+            if PIECES[i].is_player(player) {
+                continue;
+            }
+
+            let mut bits = board.bits();
+            while bits != 0 {
+                let from = bits.trailing_zeros();
+
+                bits &= bits - 1; // Clear LSB
+
+                attacked |= self.get_pseudolegal_moves(TilePos::from_index(from)).bits()
+            }
+        }
+
+        attacked.into()
+    }
+
+    pub fn is_pos_attacked(&self, pos: TilePos) -> bool {
+        (match self.get_piece(pos).to_player() {
+            Some(player) => self.get_attacked_tiles(player.next_player()),
+            None => self.get_attacked_tiles(Player::White) | self.get_attacked_tiles(Player::Black),
+        } & (1 << pos.to_index()))
+        .bits()
+            != 0
+    }
+
+    #[must_use]
+    pub fn move_makes_pos_attacked(&self, piece_move: PieceMove, pos: TilePos) -> bool {
+        // Move the piece on a cloned board
+        let mut test_board = self.clone();
+        test_board.move_piece(piece_move);
+
+        // Check if the tile which we are testing is the piece which is being moved
+        let pos = if pos == piece_move.from {
+            // Move the tile which is being tested to this new position
+            piece_move.to
+        } else {
+            pos
+        };
+
+        test_board.is_pos_attacked(pos)
+    }
+
+    #[must_use]
+    pub fn get_possible_moves(&self, from: TilePos) -> Vec<PieceMove> {
+        let mut moves = Vec::new();
+
+        let mut bits = self.get_pseudolegal_moves(from).bits();
+        while bits != 0 {
+            let to = TilePos::from_index(bits.trailing_zeros());
+
+            // Clear LSB
+            bits &= bits - 1;
+
+            moves.push(PieceMove::new(from, to));
+        }
+
+        moves
+    }
+
+    // #[must_use]
+    // pub fn get_all_possible_moves(&self, player: Player) -> Vec<PieceMove> {
+    //     let mut moves = Vec::new();
+
+    //     for (i, &board) in self.boards.iter().enumerate() {
+    //         if !PIECES[i].is_player(player) {
+    //             continue;
+    //         }
+
+    //         let mut bits = board.bits();
+    //         while bits != 0 {
+    //             let from = TilePos::from_index(bits.trailing_zeros());
+
+    //             // Clear LSB
+    //             bits &= bits - 1;
+
+    //             let mut possible_moves = self.get_possible_moves(from);
+    //             moves.append(&mut possible_moves);
+    //         }
+    //     }
+
+    //     moves
+    // }
+}
+
+impl fmt::Display for BitBoards {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut message = String::new();
+
+        for rank in (0..BOARD_SIZE).rev() {
+            for file in 0..BOARD_SIZE {
+                let piece = {
+                    let found_pieces = self
+                        .boards
+                        .iter()
+                        .zip(PIECES)
+                        .filter_map(|(board, &piece)| {
+                            if board.get_bit_at(TilePos::new(file, rank)) {
+                                Some(piece)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+
+                    if found_pieces.is_empty() {
+                        Piece::None
+                    } else {
+                        // Should only ever have one piece on each type
+                        found_pieces[0]
+                    }
+                };
+
+                let piece_char = Into::<char>::into(piece);
+
+                message += format!("{piece_char} ").as_str();
+            }
+
+            if rank > 0 {
+                message.push('\n');
+            }
+        }
+
+        write!(f, "{message}")
+    }
+}
+
+impl std::ops::Index<Piece> for BitBoards {
+    type Output = BitBoard;
+
+    fn index(&self, piece: Piece) -> &Self::Output {
+        match piece {
+            Piece::None => panic!("Tried to use Piece::None as an index"),
+            _ => &self.boards[piece.to_bitboard_index()],
+        }
+    }
+}
+
+impl std::ops::IndexMut<Piece> for BitBoards {
+    fn index_mut(&mut self, piece: Piece) -> &mut Self::Output {
+        match piece {
+            Piece::None => panic!("Tried to use Piece::None as an index"),
+            _ => &mut self.boards[piece.to_bitboard_index()],
+        }
+    }
+}
+
+fn sliding_moves_in_direction(mut position: u64, occupied: u64, shift: i8, edge_mask: u64) -> u64 {
+    let mut moves = 0;
+    loop {
+        // Shift position by one step
+        if shift > 0 {
+            position = (position << shift) & !edge_mask;
+        } else {
+            position = (position >> (-shift)) & !edge_mask;
+        }
+
+        if position == 0 {
+            break;
+        }
+
+        moves |= position;
+
+        // If the position intersects occupied squares, stop sliding in this direction
+        if (position & occupied) != 0 {
+            break;
+        }
+    }
+    moves
+}
+
+fn shift(bits: u64, shift_amt: i8) -> u64 {
+    if shift_amt > 0 {
+        bits << shift_amt
+    } else {
+        bits >> shift_amt.abs()
+    }
+}

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    bitboard::BitBoards,
+    bitboards::BitBoards,
     move_history::PieceMoveHistory,
     piece::{COLOUR_AMT, PIECES, Piece},
     piece_move::{
@@ -384,13 +384,7 @@ impl Board {
     // TODO Remove this
     #[must_use]
     pub fn get_piece(&self, tile_pos: TilePos) -> Piece {
-        for &piece in PIECES {
-            if self.positions[piece].get_bit_at(tile_pos) {
-                return piece;
-            }
-        }
-
-        Piece::None
+        self.positions.get_piece(tile_pos)
     }
 
     pub fn set_piece(&mut self, tile_pos: TilePos, piece: Piece) {
@@ -447,301 +441,300 @@ impl Board {
     //         .collect::<Vec<_>>()
     // }
 
-    #[must_use]
-    fn get_moves_in_dir(&self, from: TilePos, dirs: Vec<(isize, isize)>) -> Option<Vec<TilePos>> {
-        let mut positions = Vec::new();
+    // #[must_use]
+    // fn get_moves_in_dir(&self, from: TilePos, dirs: Vec<(isize, isize)>) -> Option<Vec<TilePos>> {
+    //     let mut positions = Vec::new();
 
-        let board_size_isize = isize::try_from(BOARD_SIZE).ok()?;
+    //     let board_size_isize = isize::try_from(BOARD_SIZE).ok()?;
 
-        for dir in dirs {
-            for k in 1..(board_size_isize) {
-                let new_file = isize::try_from(from.file).ok()? + dir.0 * k;
-                let new_rank = isize::try_from(from.rank).ok()? + dir.1 * k;
+    //     for dir in dirs {
+    //         for k in 1..(board_size_isize) {
+    //             let new_file = isize::try_from(from.file).ok()? + dir.0 * k;
+    //             let new_rank = isize::try_from(from.rank).ok()? + dir.1 * k;
 
-                // New pos is within the board
-                if new_file >= 0
-                    && new_file < board_size_isize
-                    && new_rank >= 0
-                    && new_rank < board_size_isize
-                {
-                    let new_pos =
-                        TilePos::new(u32::try_from(new_file).ok()?, u32::try_from(new_rank).ok()?);
+    //             // New pos is within the board
+    //             if new_file >= 0
+    //                 && new_file < board_size_isize
+    //                 && new_rank >= 0
+    //                 && new_rank < board_size_isize
+    //             {
+    //                 let new_pos =
+    //                     TilePos::new(u32::try_from(new_file).ok()?, u32::try_from(new_rank).ok()?);
 
-                    let piece = self.get_piece(from);
-                    let captured_piece = self.get_piece(new_pos);
-                    if captured_piece != Piece::None {
-                        if captured_piece.to_player() != piece.to_player() {
-                            positions.push(new_pos);
-                        }
+    //                 let piece = self.get_piece(from);
+    //                 let captured_piece = self.get_piece(new_pos);
+    //                 if captured_piece != Piece::None {
+    //                     if captured_piece.to_player() != piece.to_player() {
+    //                         positions.push(new_pos);
+    //                     }
 
-                        break;
-                    }
+    //                     break;
+    //                 }
 
-                    positions.push(new_pos);
-                }
-            }
-        }
+    //                 positions.push(new_pos);
+    //             }
+    //         }
+    //     }
 
-        Some(positions)
-    }
+    //     Some(positions)
+    // }
 
-    #[must_use]
-    pub fn get_orthogonal_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
-        self.get_moves_in_dir(from, vec![(1, 0), (0, 1), (-1, 0), (0, -1)])
-    }
+    // #[must_use]
+    // pub fn get_orthogonal_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
+    //     self.get_moves_in_dir(from, vec![(1, 0), (0, 1), (-1, 0), (0, -1)])
+    // }
 
-    #[must_use]
-    pub fn get_diagonal_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
-        self.get_moves_in_dir(from, vec![(1, 1), (1, -1), (-1, 1), (-1, -1)])
-    }
+    // #[must_use]
+    // pub fn get_diagonal_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
+    //     self.get_moves_in_dir(from, vec![(1, 1), (1, -1), (-1, 1), (-1, -1)])
+    // }
 
-    #[must_use]
-    pub fn get_ortho_diagonal_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
-        let mut positions = self.get_orthogonal_moves(from)?;
-        positions.append(&mut self.get_diagonal_moves(from)?);
+    // #[must_use]
+    // pub fn get_ortho_diagonal_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
+    //     let mut positions = self.get_orthogonal_moves(from)?;
+    //     positions.append(&mut self.get_diagonal_moves(from)?);
 
-        Some(positions)
-    }
+    //     Some(positions)
+    // }
 
-    fn get_castling_pos(&self, from: TilePos, file: u32) -> Option<TilePos> {
-        // Get Rook Position
-        let rook = TilePos::new(file, from.rank);
+    // fn get_castling_pos(&self, from: TilePos, file: u32) -> Option<TilePos> {
+    //     // Get Rook Position
+    //     let rook = TilePos::new(file, from.rank);
 
-        // Check that it is empty between the rook and the king
-        if self.is_empty_between(from, rook) {
-            // Check that there are no attacked tiles between the rook and the king
-            let tiles_between = self.get_tiles_between(from, rook)?;
+    //     // Check that it is empty between the rook and the king
+    //     if self.is_empty_between(from, rook) {
+    //         // Check that there are no attacked tiles between the rook and the king
+    //         let tiles_between = self.get_tiles_between(from, rook)?;
 
-            let mut attacked_between = false;
-            for tile in tiles_between {
-                if self.is_pos_attacked(tile) {
-                    attacked_between = true;
-                    break;
-                }
-            }
+    //         let mut attacked_between = false;
+    //         for tile in tiles_between {
+    //             if self.is_pos_attacked(tile) {
+    //                 attacked_between = true;
+    //                 break;
+    //             }
+    //         }
 
-            if !attacked_between {
-                let new_file = if from.file > file {
-                    from.file - 2
-                } else {
-                    from.file + 2
-                };
-                return Some(TilePos::new(new_file, from.rank));
-            }
-        }
+    //         if !attacked_between {
+    //             let new_file = if from.file > file {
+    //                 from.file - 2
+    //             } else {
+    //                 from.file + 2
+    //             };
+    //             return Some(TilePos::new(new_file, from.rank));
+    //         }
+    //     }
 
-        None
-    }
+    //     None
+    // }
 
-    #[must_use]
-    pub fn get_knight_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
-        let mut positions = Vec::new();
+    // #[must_use]
+    // pub fn get_knight_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
+    //     let mut positions = Vec::new();
 
-        let file_isize = isize::try_from(from.file).ok()?;
-        let rank_isize = isize::try_from(from.rank).ok()?;
-        let board_size_isize = isize::try_from(BOARD_SIZE).ok()?;
+    //     let file_isize = isize::try_from(from.file).ok()?;
+    //     let rank_isize = isize::try_from(from.rank).ok()?;
+    //     let board_size_isize = isize::try_from(BOARD_SIZE).ok()?;
 
-        for i in [-2, -1, 1, 2_isize] {
-            for j in [-2, -1, 1, 2_isize] {
-                if i.abs() != j.abs()
-                    && file_isize + i >= 0
-                    && file_isize + i < board_size_isize
-                    && rank_isize + j >= 0
-                    && rank_isize + j < board_size_isize
-                {
-                    let new_pos = TilePos::new(
-                        u32::try_from(file_isize + i).ok()?,
-                        u32::try_from(rank_isize + j).ok()?,
-                    );
+    //     for i in [-2, -1, 1, 2_isize] {
+    //         for j in [-2, -1, 1, 2_isize] {
+    //             if i.abs() != j.abs()
+    //                 && file_isize + i >= 0
+    //                 && file_isize + i < board_size_isize
+    //                 && rank_isize + j >= 0
+    //                 && rank_isize + j < board_size_isize
+    //             {
+    //                 let new_pos = TilePos::new(
+    //                     u32::try_from(file_isize + i).ok()?,
+    //                     u32::try_from(rank_isize + j).ok()?,
+    //                 );
 
-                    let captured_piece = self.get_piece(new_pos);
-                    if captured_piece.to_player() != self.get_piece(from).to_player()
-                        || captured_piece == Piece::None
-                    {
-                        positions.push(new_pos);
-                    }
-                }
-            }
-        }
+    //                 let captured_piece = self.get_piece(new_pos);
+    //                 if captured_piece.to_player() != self.get_piece(from).to_player()
+    //                     || captured_piece == Piece::None
+    //                 {
+    //                     positions.push(new_pos);
+    //                 }
+    //             }
+    //         }
+    //     }
 
-        Some(positions)
-    }
+    //     Some(positions)
+    // }
 
-    #[must_use]
-    pub fn get_king_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
-        let mut positions = Vec::new();
+    // #[must_use]
+    // pub fn get_king_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
+    //     let mut positions = Vec::new();
 
-        let file_isize = isize::try_from(from.file).ok()?;
-        let rank_isize = isize::try_from(from.rank).ok()?;
-        let board_size_isize = isize::try_from(BOARD_SIZE).ok()?;
+    //     let file_isize = isize::try_from(from.file).ok()?;
+    //     let rank_isize = isize::try_from(from.rank).ok()?;
+    //     let board_size_isize = isize::try_from(BOARD_SIZE).ok()?;
 
-        let player = self.get_piece(from).to_player();
+    //     let player = self.get_piece(from).to_player();
 
-        // Normal movement
-        for i in [-1, 0, 1] {
-            for j in [-1, 0, 1] {
-                if !(i == 0 && j == 0) {
-                    let vertical = file_isize + i;
-                    let horizontal = rank_isize + j;
+    //     // Normal movement
+    //     for i in [-1, 0, 1] {
+    //         for j in [-1, 0, 1] {
+    //             if !(i == 0 && j == 0) {
+    //                 let vertical = file_isize + i;
+    //                 let horizontal = rank_isize + j;
 
-                    if vertical >= 0
-                        && vertical < board_size_isize
-                        && horizontal >= 0
-                        && horizontal < board_size_isize
-                    {
-                        let new_pos = TilePos::new(
-                            u32::try_from(file_isize + i).ok()?,
-                            u32::try_from(rank_isize + j).ok()?,
-                        );
+    //                 if vertical >= 0
+    //                     && vertical < board_size_isize
+    //                     && horizontal >= 0
+    //                     && horizontal < board_size_isize
+    //                 {
+    //                     let new_pos = TilePos::new(
+    //                         u32::try_from(file_isize + i).ok()?,
+    //                         u32::try_from(rank_isize + j).ok()?,
+    //                     );
 
-                        if self.get_piece(new_pos).to_player() != player {
-                            positions.push(new_pos);
-                        }
-                    }
-                }
-            }
-        }
+    //                     if self.get_piece(new_pos).to_player() != player {
+    //                         positions.push(new_pos);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
 
-        // Castling
-        if let Some(player) = player {
-            let player_index = player.to_index();
+    //     // Castling
+    //     if let Some(player) = player {
+    //         let player_index = player.to_index();
 
-            // Kingside Castling
-            if self.castling_rights[player_index].0 {
-                if let Some(pos) = self.get_castling_pos(from, BOARD_SIZE - 1) {
-                    positions.push(pos);
-                }
-            }
+    //         // Kingside Castling
+    //         if self.castling_rights[player_index].0 {
+    //             if let Some(pos) = self.get_castling_pos(from, BOARD_SIZE - 1) {
+    //                 positions.push(pos);
+    //             }
+    //         }
 
-            // Queenside Castling
-            if self.castling_rights[player_index].1 {
-                if let Some(pos) = self.get_castling_pos(from, 0) {
-                    positions.push(pos);
-                }
-            }
-        }
+    //         // Queenside Castling
+    //         if self.castling_rights[player_index].1 {
+    //             if let Some(pos) = self.get_castling_pos(from, 0) {
+    //                 positions.push(pos);
+    //             }
+    //         }
+    //     }
 
-        Some(positions)
-    }
+    //     Some(positions)
+    // }
 
-    #[must_use]
-    pub fn get_pawn_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
-        let piece = self.get_piece(from);
-        let vertical_dir = Self::get_vertical_dir(piece);
+    // #[must_use]
+    // pub fn get_pawn_moves(&self, from: TilePos) -> Option<Vec<TilePos>> {
+    //     let piece = self.get_piece(from);
+    //     let vertical_dir = Self::get_vertical_dir(piece);
 
-        let file_isize = isize::try_from(from.file).ok()?;
-        let rank_isize = isize::try_from(from.rank).ok()?;
-        let board_size_isize = isize::try_from(BOARD_SIZE).ok()?;
+    //     let file_isize = isize::try_from(from.file).ok()?;
+    //     let rank_isize = isize::try_from(from.rank).ok()?;
+    //     let board_size_isize = isize::try_from(BOARD_SIZE).ok()?;
 
-        let mut positions = Vec::new();
+    //     let mut positions = Vec::new();
 
-        // Single Move Vertically and Diagonal Captures
-        let new_vertical_pos = rank_isize + vertical_dir;
-        if new_vertical_pos >= 0 && new_vertical_pos < board_size_isize {
-            // Single Move Vertically
-            let new_pos = TilePos::new(from.file, u32::try_from(rank_isize + vertical_dir).ok()?);
-            if self.get_piece(new_pos) == Piece::None {
-                positions.push(new_pos);
-            }
+    //     // Single Move Vertically and Diagonal Captures
+    //     let new_vertical_pos = rank_isize + vertical_dir;
+    //     if new_vertical_pos >= 0 && new_vertical_pos < board_size_isize {
+    //         // Single Move Vertically
+    //         let new_pos = TilePos::new(from.file, u32::try_from(rank_isize + vertical_dir).ok()?);
+    //         if self.get_piece(new_pos) == Piece::None {
+    //             positions.push(new_pos);
+    //         }
 
-            // Diagonal Captures
-            for k in [-1, 1] {
-                let new_horizontal_pos = file_isize + k;
+    //         // Diagonal Captures
+    //         for k in [-1, 1] {
+    //             let new_horizontal_pos = file_isize + k;
 
-                if new_horizontal_pos >= 0 && new_horizontal_pos < board_size_isize {
-                    if let Some(player) = piece.to_player() {
-                        let new_pos = TilePos::new(
-                            u32::try_from(new_horizontal_pos).ok()?,
-                            u32::try_from(new_vertical_pos).ok()?,
-                        );
+    //             if new_horizontal_pos >= 0 && new_horizontal_pos < board_size_isize {
+    //                 if let Some(player) = piece.to_player() {
+    //                     let new_pos = TilePos::new(
+    //                         u32::try_from(new_horizontal_pos).ok()?,
+    //                         u32::try_from(new_vertical_pos).ok()?,
+    //                     );
 
-                        if let Some(captured_player) = self.get_piece(new_pos).to_player() {
-                            if player != captured_player {
-                                positions.push(new_pos);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    //                     if let Some(captured_player) = self.get_piece(new_pos).to_player() {
+    //                         if player != captured_player {
+    //                             positions.push(new_pos);
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
 
-        // En passant
-        if let Some(passant_tile) = self.en_passant_on_last_move {
-            let file_diff = isize::try_from(passant_tile.file).ok()? - file_isize;
-            let rank_diff = isize::try_from(passant_tile.rank).ok()? - rank_isize;
+    //     // En passant
+    //     if let Some(passant_tile) = self.en_passant_on_last_move {
+    //         let file_diff = isize::try_from(passant_tile.file).ok()? - file_isize;
+    //         let rank_diff = isize::try_from(passant_tile.rank).ok()? - rank_isize;
 
-            // Is able to take the en passant square
-            if file_diff.abs() == 1 && rank_diff == vertical_dir {
-                positions.push(passant_tile);
-            }
-        }
+    //         // Is able to take the en passant square
+    //         if file_diff.abs() == 1 && rank_diff == vertical_dir {
+    //             positions.push(passant_tile);
+    //         }
+    //     }
 
-        // Double Vertical Move
-        if Self::double_pawn_move_check(piece, from) {
-            let new_pos = TilePos::new(
-                from.file,
-                u32::try_from(rank_isize + 2 * vertical_dir).ok()?,
-            );
+    //     // Double Vertical Move
+    //     if Self::double_pawn_move_check(piece, from) {
+    //         let new_pos = TilePos::new(
+    //             from.file,
+    //             u32::try_from(rank_isize + 2 * vertical_dir).ok()?,
+    //         );
 
-            // Is empty between these points, and there is nothing at that tile
-            if self.is_empty_between(from, new_pos) && self.get_piece(new_pos) == Piece::None {
-                positions.push(new_pos);
-            }
-        }
+    //         // Is empty between these points, and there is nothing at that tile
+    //         if self.is_empty_between(from, new_pos) && self.get_piece(new_pos) == Piece::None {
+    //             positions.push(new_pos);
+    //         }
+    //     }
 
-        Some(positions)
-    }
+    //     Some(positions)
+    // }
 
-    // Get the tiles which are attacked by the opposing player
-    #[must_use]
-    pub fn get_attacked_tiles(&self, player: Player) -> Vec<TilePos> {
-        self.positions
-            .boards
-            .iter()
-            .enumerate()
-            .filter_map(|(i, &board)| {
-                // Choose only the boards for pieces which are not this player's
-                if PIECES[i].is_player(player) {
-                    None
-                } else {
-                    Some(board)
-                }
-            })
-            .flat_map(|board| {
-                // Get the pseudolegal moves for all pieces of this type
-                board
-                    .to_tile_positions()
-                    .iter()
-                    .filter_map(|&pos| get_pseudolegal_moves(self, pos))
-                    .flat_map(IntoIterator::into_iter)
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>()
-    }
+    // // Get the tiles which are attacked by the opposing player
+    // #[must_use]
+    // pub fn get_attacked_tiles(&self, player: Player) -> Vec<TilePos> {
+    //     self.positions
+    //         .boards
+    //         .iter()
+    //         .enumerate()
+    //         .filter_map(|(i, &board)| {
+    //             // Choose only the boards for pieces which are not this player's
+    //             if PIECES[i].is_player(player) {
+    //                 None
+    //             } else {
+    //                 Some(board)
+    //             }
+    //         })
+    //         .flat_map(|board| {
+    //             // Get the pseudolegal moves for all pieces of this type
+    //             board
+    //                 .to_tile_positions()
+    //                 .iter()
+    //                 .flat_map(|&pos| get_pseudolegal_moves(self, pos))
+    //                 .collect::<Vec<_>>()
+    //         })
+    //         .collect::<Vec<_>>()
+    // }
 
-    #[must_use]
-    pub fn is_pos_attacked(&self, pos: TilePos) -> bool {
-        self.get_piece(pos)
-            .to_player()
-            .is_some_and(|player| self.get_attacked_tiles(player).contains(&pos))
-    }
+    // #[must_use]
+    // pub fn is_pos_attacked(&self, pos: TilePos) -> bool {
+    //     self.get_piece(pos)
+    //         .to_player()
+    //         .is_some_and(|player| self.get_attacked_tiles(player).contains(&pos))
+    // }
 
-    #[must_use]
-    pub fn move_makes_pos_attacked(&self, piece_move: PieceMove, pos: TilePos) -> bool {
-        // Move the piece on a cloned board
-        let mut test_board = self.clone();
-        test_board.move_piece(piece_move);
+    // #[must_use]
+    // pub fn move_makes_pos_attacked(&self, piece_move: PieceMove, pos: TilePos) -> bool {
+    //     // Move the piece on a cloned board
+    //     let mut test_board = self.clone();
+    //     test_board.move_piece(piece_move);
 
-        // Check if the tile which we are testing is the piece which is being moved
-        let pos = if pos == piece_move.from {
-            // Move the tile which is being tested to this new position
-            piece_move.to
-        } else {
-            pos
-        };
+    //     // Check if the tile which we are testing is the piece which is being moved
+    //     let pos = if pos == piece_move.from {
+    //         // Move the tile which is being tested to this new position
+    //         piece_move.to
+    //     } else {
+    //         pos
+    //     };
 
-        test_board.is_pos_attacked(pos)
-    }
+    //     test_board.is_pos_attacked(pos)
+    // }
 
     #[must_use]
     pub fn double_pawn_move_check(piece: Piece, from: TilePos) -> bool {
@@ -816,35 +809,35 @@ impl Board {
         self.positions[self.get_player_king(player)].to_tile_positions()[0] // Should always have a king
     }
 
-    #[must_use]
-    pub fn get_all_possible_moves(&self, player: Player) -> Vec<PieceMove> {
-        self.positions
-            .boards
-            .into_iter()
-            .enumerate()
-            .filter_map(|(i, bitboard)| {
-                if Piece::from(i).is_player(player) {
-                    Some(
-                        bitboard
-                            .to_tile_positions()
-                            .into_iter()
-                            .filter_map(|from_pos| {
-                                get_possible_moves(self, from_pos)
-                                    .map(|positions| (from_pos, positions))
-                            })
-                            .flat_map(|(from_pos, positions)| {
-                                positions
-                                    .into_iter()
-                                    .map(move |to_pos| PieceMove::new(from_pos, to_pos))
-                            }),
-                    )
-                } else {
-                    None
-                }
-            })
-            .flat_map(IntoIterator::into_iter)
-            .collect::<Vec<_>>()
-    }
+    // #[must_use]
+    // pub fn get_all_possible_moves(&self, player: Player) -> Vec<PieceMove> {
+    //     self.positions
+    //         .boards
+    //         .into_iter()
+    //         .enumerate()
+    //         .filter_map(|(i, bitboard)| {
+    //             if Piece::from(i).is_player(player) {
+    //                 Some(
+    //                     bitboard
+    //                         .to_tile_positions()
+    //                         .into_iter()
+    //                         .filter_map(|from_pos| {
+    //                             get_possible_moves(self, from_pos)
+    //                                 .map(|positions| (from_pos, positions))
+    //                         })
+    //                         .flat_map(|(from_pos, positions)| {
+    //                             positions
+    //                                 .into_iter()
+    //                                 .map(move |to_pos| PieceMove::new(from_pos, to_pos))
+    //                         }),
+    //                 )
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .flat_map(IntoIterator::into_iter)
+    //         .collect::<Vec<_>>()
+    // }
 
     #[must_use]
     pub fn has_game_ended(&self) -> Option<Option<Player>> {
@@ -863,7 +856,7 @@ impl Board {
                 .is_none()
             {
                 // King is in check, it is checkmate
-                if self.is_pos_attacked(king_pos) {
+                if self.positions.is_pos_attacked(king_pos) {
                     let opposite_player = player.next_player();
                     return Some(Some(opposite_player));
                 }

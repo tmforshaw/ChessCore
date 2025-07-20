@@ -6,6 +6,7 @@
 // #![allow(clippy::cast_possible_truncation)]
 
 pub mod bitboard;
+pub mod bitboards;
 pub mod board;
 pub mod move_history;
 pub mod piece;
