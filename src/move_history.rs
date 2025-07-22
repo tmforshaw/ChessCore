@@ -39,22 +39,8 @@ impl HistoryMove {
     }
 }
 
-impl
-    From<(
-        PieceMove,
-        Option<Piece>,
-        Option<TilePos>,
-        [(bool, bool); COLOUR_AMT],
-    )> for HistoryMove
-{
-    fn from(
-        value: (
-            PieceMove,
-            Option<Piece>,
-            Option<TilePos>,
-            [(bool, bool); COLOUR_AMT],
-        ),
-    ) -> Self {
+impl From<(PieceMove, Option<Piece>, Option<TilePos>, [(bool, bool); COLOUR_AMT])> for HistoryMove {
+    fn from(value: (PieceMove, Option<Piece>, Option<TilePos>, [(bool, bool); COLOUR_AMT])) -> Self {
         Self {
             piece_move: value.0,
             captured_piece: value.1,
@@ -64,14 +50,7 @@ impl
     }
 }
 
-impl From<HistoryMove>
-    for (
-        PieceMove,
-        Option<Piece>,
-        Option<TilePos>,
-        [(bool, bool); COLOUR_AMT],
-    )
-{
+impl From<HistoryMove> for (PieceMove, Option<Piece>, Option<TilePos>, [(bool, bool); COLOUR_AMT]) {
     fn from(value: HistoryMove) -> Self {
         (
             value.piece_move,
@@ -105,21 +84,15 @@ impl PieceMoveHistory {
             // Clear history depending on where current_idx is (if the move is different from the history)
             if let Some(current_idx) = self.current_idx {
                 // If the suggested move is different to the current move in history, and is not the last move in the history
-                if piece_move != self.moves[current_idx].piece_move
-                    && current_idx + 1 < self.moves.len()
-                {
+                if piece_move != self.moves[current_idx].piece_move && current_idx + 1 < self.moves.len() {
                     self.clear_excess_moves();
                 }
             } else if !self.moves.is_empty() {
                 self.clear_excess_moves();
             }
 
-            self.moves.push(HistoryMove::new(
-                piece_move,
-                captured_piece,
-                en_passant_tile,
-                castling_rights,
-            ));
+            self.moves
+                .push(HistoryMove::new(piece_move, captured_piece, en_passant_tile, castling_rights));
             let _ = self.increment_index();
         }
     }
