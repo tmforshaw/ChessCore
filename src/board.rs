@@ -109,8 +109,6 @@ impl From<TilePos> for (u32, u32) {
 pub struct Board {
     pub positions: BitBoards,
     pub player: Player,
-    // pub castling_rights: [(bool, bool); COLOUR_AMT],
-    // pub en_passant_on_last_move: Option<TilePos>,
     pub half_move_counter: usize,
     pub full_move_counter: usize,
     pub move_history: PieceMoveHistory,
@@ -265,44 +263,5 @@ impl Board {
 
     pub const fn next_player(&mut self) {
         self.player = self.get_next_player();
-    }
-
-    #[must_use]
-    pub fn double_pawn_move_check(piece: Piece, from: TilePos) -> bool {
-        (piece.is_white() && from.rank == 1) || (piece.is_black() && from.rank == BOARD_SIZE - 2)
-    }
-
-    #[must_use]
-    pub fn get_vertical_dir(piece: Piece) -> isize {
-        isize::from(piece.is_white()) * 2 - 1
-    }
-
-    #[must_use]
-    pub fn get_tiles_between(&self, pos1: TilePos, pos2: TilePos) -> Option<Vec<TilePos>> {
-        if pos1.file == pos2.file && pos1.rank == pos2.rank {
-            return None;
-        }
-
-        let file_diff_isize = isize::try_from(pos1.file).ok()? - isize::try_from(pos2.file).ok()?;
-        let rank_diff_isize = isize::try_from(pos1.rank).ok()? - isize::try_from(pos2.rank).ok()?;
-
-        if file_diff_isize.unsigned_abs() > 0 && rank_diff_isize.unsigned_abs() > 0 {
-            return None;
-        }
-
-        let lower_pos = if file_diff_isize < 0 || rank_diff_isize < 0 {
-            pos1
-        } else {
-            pos2
-        };
-
-        let file_diff = u32::from(file_diff_isize != 0);
-        let rank_diff = u32::from(rank_diff_isize != 0);
-
-        Some(
-            (1..((file_diff_isize.unsigned_abs() as u32).max(rank_diff_isize.unsigned_abs() as u32)))
-                .map(|k| TilePos::new(lower_pos.file + k * file_diff, lower_pos.rank + k * rank_diff))
-                .collect::<Vec<_>>(),
-        )
     }
 }

@@ -614,8 +614,10 @@ impl BitBoards {
                 .to_player()
                 .expect("Could not get player from Piece at from"); // TODO
 
-            if !self.move_makes_pos_attacked(new_move, self.get_king_pos(player)) {
-                moves.push(new_move);
+            if let Some(king_pos) = self.get_king_pos(player) {
+                if !self.move_makes_pos_attacked(new_move, king_pos) {
+                    moves.push(new_move);
+                }
             }
         }
 
@@ -655,8 +657,8 @@ impl BitBoards {
     }
 
     #[must_use]
-    pub fn get_king_pos(&self, player: Player) -> TilePos {
-        self[self.get_player_king(player)].to_tile_positions()[0] // Should always have a king
+    pub fn get_king_pos(&self, player: Player) -> Option<TilePos> {
+        self[self.get_player_king(player)].to_tile_positions().first().copied() // Should always have a king
     }
 
     // Gets a mask for the files which are between two file indices
@@ -677,22 +679,26 @@ impl BitBoards {
         // Get the position of all kings
         for (player, king_pos) in PLAYERS.iter().map(|&player| (player, self.get_king_pos(player))) {
             // No moves for this player
-            if self
-                .get_player_occupied(player)
-                .to_tile_positions()
-                .iter()
-                .flat_map(|&piece_pos| self.get_possible_moves(piece_pos))
-                .next()
-                .is_none()
-            {
-                // King is in check, it is checkmate
-                if self.is_pos_attacked(king_pos) {
-                    let opposite_player = player.next_player();
-                    return Some(Some(opposite_player));
-                }
+            if let Some(king_pos) = king_pos {
+                if self
+                    .get_player_occupied(player)
+                    .to_tile_positions()
+                    .iter()
+                    .flat_map(|&piece_pos| self.get_possible_moves(piece_pos))
+                    .next()
+                    .is_none()
+                {
+                    // King is in check, it is checkmate
+                    if self.is_pos_attacked(king_pos) {
+                        return Some(Some(player.next_player()));
+                    }
 
-                // Stalemate
-                return Some(None);
+                    // Stalemate
+                    return Some(None);
+                }
+            } else {
+                // No king was found for this player
+                return Some(Some(player.next_player()));
             }
         }
 
