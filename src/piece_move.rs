@@ -2,7 +2,6 @@ use std::fmt;
 
 use crate::{board::TilePos, piece::Piece};
 
-// TODO make a capture move type
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub enum PieceMoveType {
     #[default]
