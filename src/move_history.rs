@@ -154,11 +154,7 @@ impl PieceMoveHistory {
 
     #[must_use]
     pub fn get(&self) -> Option<HistoryMove> {
-        if self.moves.is_empty() {
-            None
-        } else {
-            Some(self.moves[self.current_idx.unwrap_or(0)])
-        }
+        self.current_idx.map(|current_idx| self.moves[current_idx])
     }
 
     pub fn get_mut(&mut self) -> Option<&mut HistoryMove> {
