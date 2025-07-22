@@ -720,7 +720,7 @@ impl Board {
     pub fn is_pos_attacked(&self, pos: TilePos) -> bool {
         (self.get_piece(pos).to_player().map_or_else(
             || self.get_attacked_tiles(Player::White) | self.get_attacked_tiles(Player::Black),
-            |player| self.get_attacked_tiles(player), // TODO should use next player but needs it without for some reason
+            |player| self.get_attacked_tiles(player),
         ) & (1 << pos.to_index()))
         .bits()
             != 0
