@@ -16,6 +16,7 @@ pub const SCHOLARS_MATE_FEN: &str = "rnbqkbnr/1ppp1ppp/8/p3p3/2B1P3/5Q2/PPPP1PPP
 pub const PROMOTION_FEN: &str = "8/1ppkp1P1/3pp3/8/8/5PP1/p2PPKP1/8 w - - 1 1"; // Promotion Test Board
 pub const PROMOTION_CAPTURE_FEN: &str = "rn1qk1nr/pPppppPp/8/8/8/8/PpPPPPpP/RN1QK1NR w KQkq - 0 1"; // Capture Promotion Corner
 pub const STALEMATE_FEN: &str = "rnbqkbnr/pppppppp/8/8/6r1/7p/7P/7K b - - 1 1"; // Stalemate Test Board
+pub const EDGE_CAPTURE_FEN: &str = "r2q1r1k/pppp1ppp/1b6/4N3/4n3/1B6/PPPP1PPP/R2Q1R1K w - - 0 1"; // Edge Capture Test Board
 
 pub const DEFAULT_FEN: &str = NORMAL_START_FEN;
 
